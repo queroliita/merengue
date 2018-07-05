@@ -1,3 +1,9 @@
+/* ATTENTION
+ * This file has been edited from the original to be
+ * used in the Merengue toolkit by changing the name
+ * of the member "state" of the struct "ECRYPT_ctx"
+ */
+
 #include <stdio.h>
 #include "ecrypt-sync.h"
 
