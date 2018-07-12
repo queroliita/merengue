@@ -64,34 +64,54 @@ int main(int argc, char *argv[])
   */
   /* 730 seconds */
 
-  /* TEST 3: get bias Ea after fixing PNBs */
-  /*PNB_list PNB_1_14 = { 63, 36,
+  /* TEST : get bias Ea after fixing PNBs */
+  
+  PNB pnb_1_14 = { 63, 36,
     {  1, 1, 1, 1, 1, 1, 3, 3, 4, 4, 4,11,
       12,12,12,12,12,12,12,12,12,12,12,12,
       12,13,13,13,14,14,14,14,14,14,14,14 },
     { 26,27,28,29,30,31, 7, 8,24,25,26,20,
        5, 6, 7, 8, 9,10,11,12,13,14,15,16,
       17,18,19,20, 0, 1,18,19,20,21,22,23 }
-  };*/
-  /*PNB_list PNB_6_14 = { 63, 30,
-    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-      1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
-      4, 4,11,11,11,12},
-    { 5, 6, 7, 8, 9,10,11,12,13,14,15,16,
-     17,18,19,20, 0, 1,18,19,20,21,22,23
-      7, 8,13,14,31,20}
-  };*/
-      /*
-  printf("Bias |Ea*| = %f\n",getEa(&PNB,ID,OD));*/
-  /* 3.5 seconds */
+  };
+  ID[0] = 7; ID[1] = 31; OD[0] = 1; OD[1] = 14; 
+  printf("Bias |Ea*| = %f\n",getEa(&pnb_1_14,ID,OD,NULL));
+  
+  PNB pnb_6_14 = { 63, 30,
+    { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 
+      2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4,11,11,11,12},
+    { 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,
+      20, 0, 1,18,19,20,21,22,23,7, 8,13,14,31,20}
+  }; ID[0] = 8; ID[1] = 31; OD[0] = 6; OD[1] = 14;
+  printf("Bias |Ea*| = %f\n",getEa(&pnb_6_14,ID,OD,NULL));
+  
 
+  /* TEST: Ea conditioned on X7 -> 7 31 1 14 7 9 12 */
+  
+  PNB pnbciv7 = { 68, 39,
+    {  1, 1, 1, 1, 1, 1, 3, 3, 4, 4, 4, 4,11,
+      12,12,12,12,12,12,12,12,12,12,12,12,12,
+      13,13,13,13,14,14,14,14,14,14,14,14,14 },
+    { 26,27,28,29,30,31, 7, 8,12,24,25,26,20,
+       5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,
+      18,19,20,21, 0, 1, 2,18,19,20,21,22,23 }
+  };
+  ID[0] = 7; ID[1] = 31; OD[0] = 1; OD[1] = 14; 
+  civ.word[0] = 7; civ.ini[0] = 19; civ.end[0] = 12; civ.len = 1;
+  printf("Bias |Ea*| = %f\n",getEa(&pnbciv7,ID,OD,&civ));
+  return 0;
   /* TEST : get forwards PNBs */
+  /*
   getFPNBs(&fpnb,0.12,ID,OD,NULL);
   for (int i = 0; i < fpnb.len; i++) {
     printf("FPNB (%d,%d) ",fpnb.word[i],fpnb.bit[i]);
     printf("with neutrality measure = %f\n",fpnb.bias[i]);
   } printf("-> Found %d FPNBs and %d ivs\n",fpnb.len,fpnb.n);
-  /**/
+  */
+
+  /* TEST: get bias E */
+  printf("Bias |E*| = %f\n",getE(&pnb_1_14,ID,OD,NULL));
+  printf("Bias |E*| = %f conditioned \n",getE(&pnbciv7,ID,OD,&civ));
 
   t = clock() - t;
   double time_taken = ((double)t)/CLOCKS_PER_SEC;
