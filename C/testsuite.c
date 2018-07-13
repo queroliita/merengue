@@ -79,12 +79,12 @@ int main(int argc, char *argv[])
   t = clock(); 
 
   /* TEST 1: get bias Ed */
-  
+  /*
   printf("%f = Ed with ID = [%d,%d]\n", getEd(ID,OD,NULL),ID[0],ID[1]);
   if (argc >= 8) {
     printf("%f = conditioned Ed with ID = [%d,%d]\n", getEd(ID,OD,&civ),ID[0],ID[1]);
   }
-  
+  */
   /* 6.5 seconds */
   
   /* TEST 2: compute PNBs */
@@ -127,7 +127,6 @@ int main(int argc, char *argv[])
   */
 
   /* TEST: get bias E */
-  
   //printf("Bias |E*| = %f\n",getE(&pnb_1_14,ID,OD,NULL));
   /*printf("Bias |E*| = %f conditioned \n",getE(&pnb_1_14,ID,OD,&civ));
   */
