@@ -31,8 +31,8 @@ typedef struct
 static void salsa(int R, u32 output[16], const u32 input[16], int feedforward) {
   u32 x[16];
   int i;
-  for (i = 0;i < 16;++i) x[i] = input[i];
-  for (i = R;i > 0;i -= 2) {
+  for (i = 0; i < 16; ++i) x[i] = input[i];
+  for (i = R; i > 0 ;i -= 2) {
     x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 0],x[12]), 7));
     x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[ 4],x[ 0]), 9));
     x[12] = XOR(x[12],ROTATE(PLUS(x[ 8],x[ 4]),13));
@@ -49,7 +49,7 @@ static void salsa(int R, u32 output[16], const u32 input[16], int feedforward) {
     x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 3],x[15]), 9));
     x[11] = XOR(x[11],ROTATE(PLUS(x[ 7],x[ 3]),13));
     x[15] = XOR(x[15],ROTATE(PLUS(x[11],x[ 7]),18));
-    if ( ( i % 2 ) == 0 ){
+    if ( i != 1 ){
       x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[ 0],x[ 3]), 7));
       x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[ 1],x[ 0]), 9));
       x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[ 2],x[ 1]),13));
@@ -77,9 +77,9 @@ static void salsa(int R, u32 output[16], const u32 input[16], int feedforward) {
 static void aslas(int R, u32 output[16], const u32 input[16]) {
   u32 x[16];
   int i;
-  for (i = 0;i < 16;++i) x[i] = input[i];
-  for (i = R;i > 0;i -= 2) {
-    if ( ( i % 2 ) == 0 ){
+  for (i = 0; i < 16; ++i) x[i] = input[i];
+  for (i = 0; i < R; i += 2) {
+    if ( i > 0 || (R % 2) == 0 ) {
       x[15] = XOR(x[15],ROTATE(PLUS(x[14],x[13]),18));
       x[14] = XOR(x[14],ROTATE(PLUS(x[13],x[12]),13));
       x[13] = XOR(x[13],ROTATE(PLUS(x[12],x[15]), 9));
@@ -132,6 +132,16 @@ static void ivsetup(int flag, u8 iv[16], ECRYPT_ctx *X0, ECRYPT_ctx *X1){
   if (flag == new) bitstring(iv,16);
   ECRYPT_ivsetup(X0,iv);
   if (X1!=NULL) ECRYPT_ivsetup(X1,iv);
+}
+
+/* Answers whether the word position is a key */
+static int iskey(int word) {
+  return (word > 0 && word < 5) || (word > 10 && word < 15);
+}
+
+/* Answers whether the word position is a iv */
+static int isiv(int word) {
+  return (word > 5 && word < 10);
 }
 
 /* Compare two values */
@@ -196,21 +206,25 @@ static void setID(ECRYPT_ctx *X0, ECRYPT_ctx *X1, int *ID) {
   set1(X1,NULL,ID[0],ID[1]); 
 }
 
+/* Copy bit to other states */
+static void copybit(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, int word, int bit){
+  if ( getbit(aux,word,bit) == 1 ) set1(X0,X1,word,bit);
+  else set0(X0,X1,word,bit);
+}
+
 /* Copy fragment of bitstring to other states */
 static void copyrange(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, int word, int ini, int end){
   for (int j = 0; j < 32; ++j)
     if (j >= ini || j <= end) {
-      if ( getbit(aux,word,j) == 1 ) set1(X0,X1,word,j);
-      else set0(X0,X1,word,j);
+      copybit(X0,X1,aux,word,j);
     }
 }
 
 /* Fix conditioned bits of IV */
-static void fixCIV(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, CIV *civ, u8 v[16], int ivs){
+static void fixCIV(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, CIV *civ, int ivs){
   if ( civ != NULL ) { // Fix conditioned bits
-    if (ivs == 0) ivsetup(0,v,aux,NULL);
-    else {
-      // Need to fix whole first word if many conditions
+    if (ivs == 0) ivsetup(old,v,aux,NULL);
+    else { // Need to fix whole first word if many conditions
       if ( civ->len > 1 ) copyrange(X0,X1,aux,civ->word[0],0,31);
       for (int c = 0; c < civ->len; ++c){
         copyrange(X0,X1,aux,civ->word[c],civ->ini[c],civ->end[c]);
@@ -219,14 +233,15 @@ static void fixCIV(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, CIV *civ, u8
   }
 }
 
-/* Answers whether the word position is a key */
-static int iskey(int word) {
-  return (word > 0 && word < 5) || (word > 10 && word < 15);
-}
-
-/* Answers whether the word position is a iv */
-static int isiv(int word) {
-  return (word > 5 && word < 10);
+static void fixFPSBs(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, PNB *fpnb, int ivs){
+  if (fpnb!=NULL) {
+    if (ivs == 0) ivsetup(old,v,aux,NULL);
+    else { // Fix FPNBs of the IV
+      for ( int i = 0 ; i < fpnb->n; ++i ) {
+        if (isiv(fpnb->word[i])) copybit(X0,X1,aux,fpnb->word[i],fpnb->bit[i]);
+      }
+    }
+  }
 }
 
 /* Set random bit */
@@ -251,7 +266,6 @@ static void fixPNKBs(int type, PNB *pnb, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g) {
 static int delta(ECRYPT_ctx *Z0, ECRYPT_ctx *Z1, int *OD){
   return ((Z0->state[OD[0]] >> OD[1]) & 1) ^ ((Z1->state[OD[0]] >> OD[1]) & 1);
 }
-
 
 /* Compute bias */
 static float biasformula(int ones, int Niv, int absolute) {
@@ -286,6 +300,28 @@ static float median(float *array, int num){
   return array[num/2-1];
 }
 
+static int isFPNB(PNB *fpnb, int word, int bit){
+  for (int i = 0; i < fpnb->n; ++i) {
+    if (word == fpnb->word[i] && bit == fpnb->bit[i]) return 1; 
+  }
+  return 0;
+}
+
+void getFPSBs(PNB *fpnb, PNB *fpsb) {
+  if (fpnb!=NULL){
+    fpsb->n = 0;
+    for (int i = 6; i < 10; ++i) {
+      for (int j = 0; j < 32; ++j) {
+        if (!isFPNB(fpnb,i,j)) {
+          fpsb->word[fpsb->n] = i;
+          fpsb->bit[fpsb->n] = j;
+          fpsb->n += 1;
+        }
+      }
+    }
+  }
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -295,32 +331,35 @@ static float median(float *array, int num){
 
 
 /* Estimate forward bias, conditioned optional */
-float getEd( int *ID, int *OD, CIV *civ) {
+float getEd( int r, int *ID, int *OD, CIV *civ, PNB *fpnb) {
+  Nk = 1024, Niv=1024*128;
   ECRYPT_ctx X0, X1, aux;
-  int ones00, ones01, ones10, ones11, len;
+  PNB fpsb;
+  int ones00, ones01, ones10, ones11;
   float Ed[Nk];
-  if (civ==NULL) len = 0; else len = civ->len;
+  getFPSBs(fpnb,&fpsb);
   for (int keys = 0; keys < Nk; ++keys){
-    keysetup(1,k,&X0,&X1);
+    keysetup(new,k,&X0,&X1);
     ones00 = 0; ones01 = 0, ones10 = 0; ones11 = 0;
     for (int ivs = 0; ivs < Niv; ++ivs){
-      ivsetup(1,v,&X0,&X1);
-      fixCIV(&X0,&X1,&aux,civ,v,ivs);
+      ivsetup(new,v,&X0,&X1);
+      fixFPSBs(&X0,&X1,&aux,&fpsb,ivs);
+      fixCIV(&X0,&X1,&aux,civ,ivs);
       setID(&X0,&X1,ID);
       if ( civ != NULL ) {
         if ( civ->len > 1 ) {
           set0(&X0,&X1,civ->word[1],civ->end[1]);
           set0(&X0,&X1,civ->word[0],civ->end[0]); 
-          ones00 += salsadelta(4,&X0,&X1,OD);
+          ones00 += salsadelta(r,&X0,&X1,OD);
           set1(&X0,&X1,civ->word[0],civ->end[0]); 
-          ones01 += salsadelta(4,&X0,&X1,OD);
+          ones01 += salsadelta(r,&X0,&X1,OD);
           set1(&X0,&X1,civ->word[1],civ->end[1]);
         }
         set1(&X0,&X1,civ->word[0],civ->end[0]);
-        ones11 += salsadelta(4,&X0,&X1,OD);
+        ones11 += salsadelta(r,&X0,&X1,OD);
         set0(&X0,&X1,civ->word[0],civ->end[0]); 
       }
-      ones10 += salsadelta(4,&X0,&X1,OD);
+      ones10 += salsadelta(r,&X0,&X1,OD);
     }
     if ( civ == NULL ) Ed[keys] = biasformula(ones10,Niv,1);
     else if ( civ->len == 1) Ed[keys] = bestbias(ones11,ones10,Niv,1);
@@ -344,23 +383,26 @@ static int backflip(ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j, int *OD) {
   }
   aslas(4,Y0.state,Z0.state);
   aslas(4,Y1.state,Z1.state);
-  G = delta(&Y0,&Y1,OD);      
+  G = delta(&Y0,&Y1,OD);
   return 1 - (D ^ G);
 }
 
 /* Compute neutrality measure of a bit */
-static float neutrality(int i, int j, int *ID, int *OD, CIV *civ) {
+static float neutrality(int i, int j, int *ID, int *OD, CIV *civ, PNB *fpnb) {
   ECRYPT_ctx X0, X1, Y0, Y1, Z0, Z1, aux;
   int equal00, equal01, equal10, equal11;
+  PNB fpsb;
   Nk = 1024;      // 2^10
-  Niv = 1024*16;  // 2^14
+  Niv = 1024;  // 2^14
   float bias[Nk], bias0, bias1;
+  getFPSBs(fpnb,&fpsb);
   for (int keys = 0; keys < Nk; ++keys){
     keysetup(new,k,&X0,&X1);
     equal00 = 0; equal01 = 0; equal10 = 0; equal11 = 0;
     for (int ivs = 0; ivs < Niv; ++ivs){
       ivsetup(new,v,&X0,&X1);
-      fixCIV(&X0,&X1,&aux,civ,v,ivs);
+      fixFPSBs(&X0,&X1,&aux,&fpsb,ivs);
+      fixCIV(&X0,&X1,&aux,civ,ivs);
       setID(&X0,&X1,ID);
       if ( civ != NULL ) {
         if ( civ->len == 2){
@@ -370,19 +412,20 @@ static float neutrality(int i, int j, int *ID, int *OD, CIV *civ) {
           set1(&X0,&X1,civ->word[0],civ->end[0]); 
           equal01 += backflip(&X0,&X1,i,j,OD);
           set1(&X0,&X1,civ->word[1],civ->end[1]); 
-          equal11 += backflip(&X0,&X1,i,j,OD);
-          set0(&X0,&X1,civ->word[0],civ->end[0]); 
         }
+        set1(&X0,&X1,civ->word[0],civ->end[0]); 
+        equal11 += backflip(&X0,&X1,i,j,OD);
+        set0(&X0,&X1,civ->word[0],civ->end[0]); 
       }  
       equal10 += backflip(&X0,&X1,i,j,OD);
     }
     if ( civ == NULL ) bias[keys] = biasformula(equal10,Niv,0);
     else if ( civ->len == 1) bias[keys] = bestbias(equal11,equal10,Niv,0);
     else {
-      float aux0 = bestbias(equal00,equal01,Niv,0);
-      float aux1 = bestbias(equal10,equal11,Niv,0);
-      if ( fabs(aux0) > fabs(aux1) ) bias[keys] = aux0;
-      else bias[keys] = aux1; 
+      bias0 = bestbias(equal00,equal01,Niv,0);
+      bias1 = bestbias(equal10,equal11,Niv,0);
+      if ( fabs(bias0) > fabs(bias1) ) bias[keys] = bias0;
+      else bias[keys] = bias1; 
     }
   }
   return median(bias,Nk);
@@ -391,7 +434,8 @@ static float neutrality(int i, int j, int *ID, int *OD, CIV *civ) {
 /* Update list of PNBs depending on flag is forwards or backwards */
 static void updatePNB(PNB *pnb, float bias, float gama, int i, int j, int flag){
   if (bias > gama) {
-    if (iskey(i) && flag ) pnb->n += 1; printf("is PNB\n");
+    printf("is PNB\n");
+    if (iskey(i) && flag ) pnb->n += 1;
     if (isiv(i) && !flag ) pnb->n += 1;
     pnb->bias[pnb->len] = bias;
     pnb->word[pnb->len] = i;
@@ -401,49 +445,79 @@ static void updatePNB(PNB *pnb, float bias, float gama, int i, int j, int flag){
 }
 
 /* Compute backwards probabilistic neutral bits */
-void getBPNBs( PNB *bpnb, float gama, int *ID, int *OD, CIV *civ) {
+void getBPNBs( PNB *bpnb, float gama, int *ID, int *OD, CIV *civ, PNB *fpnb) {
   float bias;
   for ( int i = 0 ; i < 16 ; ++i ){
-    if (iskey(i)) {
+    if ( iskey(i)){
     for ( int j = 0 ; j < 32 ; ++j ) {
-      printf("(%d,%d)\n",i,j);
-      bias = neutrality(i,j,ID,OD,civ);
+      bias = neutrality(i,j,ID,OD,civ,fpnb);
+      printf("(%d,%d) bias %f\n",i,j,bias);
       updatePNB(bpnb,bias,gama,i,j,1);
     }
     } 
   }
 }
 
+static int forflip(int r, ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j, int *OD){
+  int f0, f1;
+  set0(X0,X1,i,j);
+  f0 = salsadelta(r,X0,X1,OD);
+  set1(X0,X1,i,j);
+  f1 = salsadelta(r,X0,X1,OD);
+  return 1 - (f0 ^ f1);
+}
+
 /* Compute bias of flipping one initial bit */
-static float forwards(int i, int j, int *ID, int *OD, CIV *civ){
-  ECRYPT_ctx X0,X1;
-  int f0, f1, equal;
-  float bias[Nk];
-  Niv = 1024;
+static float forwards(int r, int i, int j, int *ID, int *OD, CIV *civ){
+  ECRYPT_ctx X0,X1,aux;
+  int equal00, equal01, equal10,equal11;
+  float bias[Nk], bias0, bias1;
+  Nk = 1024;      // 2^10
+  Niv = 1024*16;  // 2^14
   for (int keys = 0; keys < Nk; keys++){
     keysetup(new,k,&X0,&X1);
-    equal = 0;
+    equal00 = 0; equal01 = 0; equal10 = 0; equal11 = 0;
     for (int ivs = 0; ivs < Niv; ivs++){
       ivsetup(new,v,&X0,&X1);
+      fixCIV(&X0,&X1,&aux,civ,ivs);
       setID(&X0,&X1,ID);
-      set0(&X0,&X1,i,j);
-      f0 = salsadelta(4,&X0,&X1,OD);
-      set1(&X0,&X1,i,j);
-      f1 = salsadelta(4,&X0,&X1,OD);
-      equal += 1 - (f0 ^ f1);
+      if ( civ != NULL ){
+        if ( civ->len > 1 ){
+          set0(&X0,&X1,civ->word[1],civ->end[1]);
+          set0(&X0,&X1,civ->word[0],civ->end[0]);
+          equal00 += forflip(r,&X0,&X1,i,j,OD);
+          set1(&X0,&X1,civ->word[0],civ->end[0]);
+          equal01 += forflip(r,&X0,&X1,i,j,OD);
+          set1(&X0,&X1,civ->word[1],civ->end[1]);
+        }
+        set1(&X0,&X1,civ->word[0],civ->end[0]);
+        equal11 += forflip(r,&X0,&X1,i,j,OD);
+        set0(&X0,&X1,civ->word[0],civ->end[0]); 
+      }
+      equal10 += forflip(r,&X0,&X1,i,j,OD);
     }
-    bias[keys] = biasformula(equal,Niv,0);
+    if ( civ == NULL ) bias[keys] = biasformula(equal10,Niv,0);
+    else if ( civ->len == 1) bias[keys] = bestbias(equal11,equal10,Niv,0);
+    else {
+      bias0 = bestbias(equal00,equal01,Niv,0);
+      bias1 = bestbias(equal10,equal11,Niv,0);
+      if ( fabs(bias0) > fabs(bias1) ) bias[keys] = bias0;
+      else bias[keys] = bias1; 
+    }
   }
   return median(bias,Nk);
 }
 
 /* Compute forwards probabilistic neutral bits */
-void getFPNBs(PNB *fpnb, float gama, int *ID, int *OD, CIV *civ) {
+void getFPNBs(PNB *fpnb, float gama, int r, int *ID, int *OD, CIV *civ) {
   float bias;
   for ( int i = 0 ; i < 16 ; ++i ){
-    for ( int j = 0 ; j < 32 ; ++j ) {
-      bias = forwards(i,j,ID,OD,civ);
-      updatePNB(fpnb,bias,gama,i,j,0);
+    if ( isiv(i) ){
+      for ( int j = 0 ; j < 32 ; ++j ) {
+        bias = forwards(r,i,j,ID,OD,civ);
+        printf("(%d,%d) bias %f\n",i,j,bias);
+        updatePNB(fpnb,bias,gama,i,j,0);
+      }
     }
   }
 }
@@ -480,11 +554,12 @@ float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ) {
     keysetup(old,k,&X0g,&X1g);
     fixPNKBs(-1, bpnb,&X0g,&X1g);
     equal00 = 0; equal01 = 0; equal10 = 0; equal11 = 0;
+    printf("key %d\n",keys);
     for ( int ivs = 0 ; ivs < Niv ; ++ivs ){
       ivsetup(new,v,&X0f,&X1f);
       ivsetup(old,v,&X0g,&X1g);
-      fixCIV(&X0f,&X1f,&aux,civ,v,ivs);
-      fixCIV(&X0g,&X1g,&aux,civ,v,ivs);
+      fixCIV(&X0f,&X1f,&aux,civ,ivs);
+      fixCIV(&X0g,&X1g,&aux,civ,ivs);
       setID(&X0f,&X1f,ID);
       setID(&X0g,&X1g,ID);
       if ( civ != NULL ) {
@@ -530,8 +605,8 @@ float getE(PNB *bpnb, int *ID, int *OD, CIV *civ) {
     for ( int ivs = 0 ; ivs < Niv ; ++ivs ){
       ivsetup(new,v,&X0f,&X1f);
       ivsetup(old,v,&X0g,&X1g);
-      fixCIV(&X0f,&X1f,&aux,civ,v,ivs);
-      fixCIV(&X0g,&X1g,&aux,civ,v,ivs);
+      fixCIV(&X0f,&X1f,&aux,civ,ivs);
+      fixCIV(&X0g,&X1g,&aux,civ,ivs);
       setID(&X0g,&X1g,ID);
       if ( civ != NULL ) {
         if (civ->len == 2 ){

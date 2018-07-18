@@ -15,8 +15,8 @@ gcc testsuite.c testsuite
    ID = {7,31} OD = {1,31} CIV1 = {7,19,12} CIV2 = {6,25,10}
  */
 
-int ID[2], OD[2];
-PNB bpnb, fpnb;
+int ID[2], OD[2], r;
+PNB bpnb, fpnb, fpsb;
 CIV civ;
 
 PNB pnb_1_14 = { 63, 36,
@@ -31,13 +31,22 @@ PNB pnb_6_14 = { 63, 30,
     2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4,11,11,11,12},
   { 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,
     20, 0, 1,18,19,20,21,22,23,7, 8,13,14,31,20} };
-PNB pnbciv7 = { 68, 39,
-  {  1, 1, 1, 1, 1, 1, 3, 3, 4, 4, 4, 4,11,
+PNB pnbciv7 = { 68, 37,
+  {  1, 1, 1, 1, 1, 1, 3, 3, 4, 4, 4,11,
     12,12,12,12,12,12,12,12,12,12,12,12,12,
-    13,13,13,13,14,14,14,14,14,14,14,14,14 },
-  { 26,27,28,29,30,31, 7, 8,12,24,25,26,20,
+    13,13,13,14,14,14,14,14,14,14,14,14 },
+  { 26,27,28,29,30,31, 7, 8,24,25,26,20,
     5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,
-    18,19,20,21, 0, 1, 2,18,19,20,21,22,23 } };
+    18,19,20, 0, 1, 2,18,19,20,21,22,23 } };
+PNB fpnb_std = { 134, 47,
+  {  6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+     7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+     8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9,
+     9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9 },
+  {  0,10,22,23,24,25,26,27,28,29,30,31,
+    18,19, 1, 2, 3,11,12,23,24,25,26,27,
+    28,29,30,31, 5, 6, 7, 8, 9,10,11,13,
+    14,15,16,17,24,25,27,28,29,30,31 } };
 
 
 static clock_t timeit(clock_t t){
@@ -62,7 +71,7 @@ int main(int argc, char *argv[])
     civ.ini[civ.len] = atoi(argv[6]);
     civ.end[civ.len] = atoi(argv[7]);
     civ.len += 1;
-  }
+  } 
   if ( argc == 11 ){
     civ.word[civ.len] = atoi(argv[8]); 
     civ.ini[civ.len] = atoi(argv[9]);
@@ -78,32 +87,32 @@ int main(int argc, char *argv[])
   clock_t t;
   t = clock(); 
 
+  r = 4;
+
   /* TEST 1: get bias Ed */
   /*
-  printf("%f = Ed with ID = [%d,%d]\n", getEd(ID,OD,NULL),ID[0],ID[1]);
-  if (argc >= 8) {
-    printf("%f = conditioned Ed with ID = [%d,%d]\n", getEd(ID,OD,&civ),ID[0],ID[1]);
+  if (argc == 5) {
+    printf("%f = Ed with ID = [%d,%d]\n", getEd(r,ID,OD,NULL,NULL),ID[0],ID[1]);
+  } else {
+    printf("%f = conditioned Ed with ID = [%d,%d]\n", getEd(r,ID,OD,&civ,NULL),ID[0],ID[1]);
   }
   */
-  /* 6.5 seconds */
-  
-  /* TEST 2: compute PNBs */
+    
+  /* TEST 2: compute BPNBs */
   /*
-  getBPNBs(&bpnb,0.12,ID,OD,&civ);
+  if (argc<=5) getBPNBs(&bpnb,0.12,ID,OD,NULL);
+  else getBPNBs(&bpnb,0.12,ID,OD,&civ);
   for (int i = 0; i < bpnb.len; i++) {
     if ( iskey(bpnb.word[i]) ) printf("BPNKB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
     else printf("BPNB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
     printf("with neutrality measure = %f\n",bpnb.bias[i]);
   } printf("-> Found %d BPNBs and %d key\n",bpnb.len,bpnb.n);
-  t = timeit(t);
   */
-  /* 730 seconds */
 
   /* TEST : get bias Ea after fixing PNBs */
   /*
   ID[0] = 7; ID[1] = 31; OD[0] = 1; OD[1] = 14; 
   printf("Bias |Ea*| = %f\n",getEa(&pnb_1_14,ID,OD,NULL));
-  timeit(t);
   */
   /*
   ID[0] = 8; ID[1] = 31; OD[0] = 6; OD[1] = 14;
@@ -118,19 +127,39 @@ int main(int argc, char *argv[])
   */
 
   /* TEST : get forwards PNBs */
-  /*
-  getFPNBs(&fpnb,0.12,ID,OD,NULL);
+  if (argc==5) getFPNBs(&fpnb,0.12,r,ID,OD,NULL);
+  else getFPNBs(&fpnb,0.12,r,ID,OD,&civ);
   for (int i = 0; i < fpnb.len; i++) {
     printf("FPNB (%d,%d) ",fpnb.word[i],fpnb.bit[i]);
     printf("with neutrality measure = %f\n",fpnb.bias[i]);
   } printf("-> Found %d FPNBs and %d ivs\n",fpnb.len,fpnb.n);
-  */
+  
 
   /* TEST: get bias E */
   //printf("Bias |E*| = %f\n",getE(&pnb_1_14,ID,OD,NULL));
-  /*printf("Bias |E*| = %f conditioned \n",getE(&pnb_1_14,ID,OD,&civ));
+  /*printf("Bias |E*| = %f conditioned \n",getE(&pnbciv7,ID,OD,&civ));
   */
 
+  /* TEST : get bias Ed fixing non FPNB*/
+  /*
+  getFPSBs(&fpnb, &fpsb);
+  for ( int i = 0; i < fpsb.n; ++i) printf("(%d,%d) is FPSB and IV\n",fpsb.word[i],fpsb.bit[i]);
+  printf("%f = Ed with FPSBs with ID = [%d,%d]\n", getEd(ID,OD,NULL,&fpnb),ID[0],ID[1]);
+
+  if (argc<=5)
+    printf("%f = Ed FPNBs with ID = [%d,%d]\n", getEd(ID,OD,NULL,&fpnb),ID[0],ID[1]);
+  else
+    printf("%f = Ed FPNBs CIV x7 with ID = [%d,%d]\n", getEd(ID,OD,&civ,&fpnb),ID[0],ID[1]);
+  
+  if (argc==5) getBPNBs(&bpnb,0.12,ID,OD,NULL,&fpnb);
+  else getBPNBs(&bpnb,0.12,ID,OD,&civ,&fpnb);
+  for (int i = 0; i < bpnb.len; i++) {
+    if ( iskey(bpnb.word[i]) ) printf("BPNKB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
+    else printf("BPNB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
+    printf("with neutrality measure = %f\n",bpnb.bias[i]);
+  } printf("-> Found %d BPNBs and %d key using 2 CIV and FPNBs \n",bpnb.len,bpnb.n);
+  */
+  timeit(t);
   
 }
 
