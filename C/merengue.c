@@ -5,7 +5,6 @@
 #include <math.h>
 
 u8 k[32]; u8 v[16];
-int Nk = 1024, Niv=4096;
 const int new = 1, old = 0;
 
 typedef struct
@@ -331,8 +330,7 @@ void getFPSBs(PNB *fpnb, PNB *fpsb) {
 
 
 /* Estimate forward bias, conditioned optional */
-float getEd( int r, int *ID, int *OD, CIV *civ, PNB *fpnb) {
-  Nk = 1024, Niv=1024*128;
+float getEd( int r, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   ECRYPT_ctx X0, X1, aux;
   PNB fpsb;
   int ones00, ones01, ones10, ones11;
@@ -388,12 +386,10 @@ static int backflip(ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j, int *OD) {
 }
 
 /* Compute neutrality measure of a bit */
-static float neutrality(int i, int j, int *ID, int *OD, CIV *civ, PNB *fpnb) {
+static float neutrality(int i, int j, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   ECRYPT_ctx X0, X1, Y0, Y1, Z0, Z1, aux;
   int equal00, equal01, equal10, equal11;
   PNB fpsb;
-  Nk = 1024;      // 2^10
-  Niv = 1024;  // 2^14
   float bias[Nk], bias0, bias1;
   getFPSBs(fpnb,&fpsb);
   for (int keys = 0; keys < Nk; ++keys){
@@ -445,12 +441,12 @@ static void updatePNB(PNB *pnb, float bias, float gama, int i, int j, int flag){
 }
 
 /* Compute backwards probabilistic neutral bits */
-void getBPNBs( PNB *bpnb, float gama, int *ID, int *OD, CIV *civ, PNB *fpnb) {
+void getBPNBs( PNB *bpnb, float gama, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   float bias;
   for ( int i = 0 ; i < 16 ; ++i ){
     if ( iskey(i)){
     for ( int j = 0 ; j < 32 ; ++j ) {
-      bias = neutrality(i,j,ID,OD,civ,fpnb);
+      bias = neutrality(i,j,ID,OD,civ,fpnb,Nk,Niv);
       printf("(%d,%d) bias %f\n",i,j,bias);
       updatePNB(bpnb,bias,gama,i,j,1);
     }
@@ -458,6 +454,7 @@ void getBPNBs( PNB *bpnb, float gama, int *ID, int *OD, CIV *civ, PNB *fpnb) {
   }
 }
 
+/* Auxiliar function for forwards() */
 static int forflip(int r, ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j, int *OD){
   int f0, f1;
   set0(X0,X1,i,j);
@@ -468,12 +465,10 @@ static int forflip(int r, ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j, int *OD)
 }
 
 /* Compute bias of flipping one initial bit */
-static float forwards(int r, int i, int j, int *ID, int *OD, CIV *civ){
+static float forwards(int r, int i, int j, int *ID, int *OD, CIV *civ, int Nk, int Niv){
   ECRYPT_ctx X0,X1,aux;
   int equal00, equal01, equal10,equal11;
   float bias[Nk], bias0, bias1;
-  Nk = 1024;      // 2^10
-  Niv = 1024*16;  // 2^14
   for (int keys = 0; keys < Nk; keys++){
     keysetup(new,k,&X0,&X1);
     equal00 = 0; equal01 = 0; equal10 = 0; equal11 = 0;
@@ -509,12 +504,12 @@ static float forwards(int r, int i, int j, int *ID, int *OD, CIV *civ){
 }
 
 /* Compute forwards probabilistic neutral bits */
-void getFPNBs(PNB *fpnb, float gama, int r, int *ID, int *OD, CIV *civ) {
+void getFPNBs(PNB *fpnb, float gama, int r, int *ID, int *OD, CIV *civ, int Nk, int Niv) {
   float bias;
   for ( int i = 0 ; i < 16 ; ++i ){
     if ( isiv(i) ){
       for ( int j = 0 ; j < 32 ; ++j ) {
-        bias = forwards(r,i,j,ID,OD,civ);
+        bias = forwards(r,i,j,ID,OD,civ,Nk,Niv);
         printf("(%d,%d) bias %f\n",i,j,bias);
         updatePNB(fpnb,bias,gama,i,j,0);
       }
@@ -543,12 +538,12 @@ static int fequalg(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx
 }
 
 /* Estimate backwards bias */
-float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ) {
+float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   ECRYPT_ctx X0f, X1f, X0g, X1g, aux;
   int equal00, equal01, equal10, equal11;
-  Nk = 1024;          // 2^10
-  Niv = 1024*1024*64; // 2^26
+  PNB fpsb;
   float Ea[Nk];
+  getFPSBs(fpnb,&fpsb);
   for ( int keys = 0 ; keys < Nk ; ++keys ) {
     keysetup(new,k,&X0f,&X1f);
     keysetup(old,k,&X0g,&X1g);
@@ -558,6 +553,8 @@ float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ) {
     for ( int ivs = 0 ; ivs < Niv ; ++ivs ){
       ivsetup(new,v,&X0f,&X1f);
       ivsetup(old,v,&X0g,&X1g);
+      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs);
+      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs);
       fixCIV(&X0f,&X1f,&aux,civ,ivs);
       fixCIV(&X0g,&X1g,&aux,civ,ivs);
       setID(&X0f,&X1f,ID);
@@ -590,12 +587,12 @@ float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ) {
   return median(Ea,Nk);
 }
 
-float getE(PNB *bpnb, int *ID, int *OD, CIV *civ) {
+float getE(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   ECRYPT_ctx X0f, X1f, X0g, X1g, aux;
   int ones00, ones01, ones10, ones11;
-  Nk = 1024;          // 2^10
-  Niv = 1024*1024*64; // 2^26
+  PNB fpsb;
   float E[Nk];
+  getFPSBs(fpnb,&fpsb);
   for ( int keys = 0 ; keys < Nk ; ++keys ) {
     printf("key %d\n",keys);
     keysetup(new,k,&X0f,&X1f);
@@ -605,6 +602,8 @@ float getE(PNB *bpnb, int *ID, int *OD, CIV *civ) {
     for ( int ivs = 0 ; ivs < Niv ; ++ivs ){
       ivsetup(new,v,&X0f,&X1f);
       ivsetup(old,v,&X0g,&X1g);
+      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs);
+      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs);
       fixCIV(&X0f,&X1f,&aux,civ,ivs);
       fixCIV(&X0g,&X1g,&aux,civ,ivs);
       setID(&X0g,&X1g,ID);
