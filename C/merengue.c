@@ -26,46 +26,91 @@ typedef struct
 
 #define MINUS(v,w) (U32V((v) - (w)))
 
+
+static void colround (u32 x[16]){
+  x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 0],x[12]), 7));
+  x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[ 4],x[ 0]), 9));
+  x[12] = XOR(x[12],ROTATE(PLUS(x[ 8],x[ 4]),13));
+  x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[12],x[ 8]),18));
+  x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 5],x[ 1]), 7));
+  x[13] = XOR(x[13],ROTATE(PLUS(x[ 9],x[ 5]), 9));
+  x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[13],x[ 9]),13));
+  x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 1],x[13]),18));
+  x[14] = XOR(x[14],ROTATE(PLUS(x[10],x[ 6]), 7));
+  x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[14],x[10]), 9));
+  x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 2],x[14]),13));
+  x[10] = XOR(x[10],ROTATE(PLUS(x[ 6],x[ 2]),18));
+  x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[15],x[11]), 7));
+  x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 3],x[15]), 9));
+  x[11] = XOR(x[11],ROTATE(PLUS(x[ 7],x[ 3]),13));
+  x[15] = XOR(x[15],ROTATE(PLUS(x[11],x[ 7]),18));
+}
+
+static void locround (u32 x[16]){
+  x[15] = XOR(x[15],ROTATE(PLUS(x[11],x[ 7]),18));
+  x[11] = XOR(x[11],ROTATE(PLUS(x[ 7],x[ 3]),13));
+  x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 3],x[15]), 9));
+  x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[15],x[11]), 7));
+  x[10] = XOR(x[10],ROTATE(PLUS(x[ 6],x[ 2]),18));
+  x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 2],x[14]),13));
+  x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[14],x[10]), 9));
+  x[14] = XOR(x[14],ROTATE(PLUS(x[10],x[ 6]), 7));
+  x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 1],x[13]),18));
+  x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[13],x[ 9]),13));
+  x[13] = XOR(x[13],ROTATE(PLUS(x[ 9],x[ 5]), 9));
+  x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 5],x[ 1]), 7));
+  x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[12],x[ 8]),18));
+  x[12] = XOR(x[12],ROTATE(PLUS(x[ 8],x[ 4]),13));
+  x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[ 4],x[ 0]), 9));
+  x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 0],x[12]), 7));
+}
+
+static void rowround (u32 x[16]) {
+  x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[ 0],x[ 3]), 7));
+  x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[ 1],x[ 0]), 9));
+  x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[ 2],x[ 1]),13));
+  x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[ 3],x[ 2]),18));
+  x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 5],x[ 4]), 7));
+  x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 6],x[ 5]), 9));
+  x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 7],x[ 6]),13));
+  x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 4],x[ 7]),18));
+  x[11] = XOR(x[11],ROTATE(PLUS(x[10],x[ 9]), 7));
+  x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[11],x[10]), 9));
+  x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 8],x[11]),13));
+  x[10] = XOR(x[10],ROTATE(PLUS(x[ 9],x[ 8]),18));
+  x[12] = XOR(x[12],ROTATE(PLUS(x[15],x[14]), 7));
+  x[13] = XOR(x[13],ROTATE(PLUS(x[12],x[15]), 9));
+  x[14] = XOR(x[14],ROTATE(PLUS(x[13],x[12]),13));
+  x[15] = XOR(x[15],ROTATE(PLUS(x[14],x[13]),18));
+}
+
+static void worround (u32 x[16]) {
+  x[15] = XOR(x[15],ROTATE(PLUS(x[14],x[13]),18));
+  x[14] = XOR(x[14],ROTATE(PLUS(x[13],x[12]),13));
+  x[13] = XOR(x[13],ROTATE(PLUS(x[12],x[15]), 9));
+  x[12] = XOR(x[12],ROTATE(PLUS(x[15],x[14]), 7));
+  x[10] = XOR(x[10],ROTATE(PLUS(x[ 9],x[ 8]),18));
+  x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 8],x[11]),13));
+  x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[11],x[10]), 9));
+  x[11] = XOR(x[11],ROTATE(PLUS(x[10],x[ 9]), 7));
+  x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 4],x[ 7]),18));
+  x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 7],x[ 6]),13));
+  x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 6],x[ 5]), 9));
+  x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 5],x[ 4]), 7));
+  x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[ 3],x[ 2]),18));
+  x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[ 2],x[ 1]),13));
+  x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[ 1],x[ 0]), 9));
+  x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[ 0],x[ 3]), 7));
+}
+
 /* Modified Salsa20/R function */
 static void salsa(int R, u32 output[16], const u32 input[16], int feedforward) {
   u32 x[16];
   int i;
   for (i = 0; i < 16; ++i) x[i] = input[i];
-  for (i = R; i > 0 ;i -= 2) {
-    x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 0],x[12]), 7));
-    x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[ 4],x[ 0]), 9));
-    x[12] = XOR(x[12],ROTATE(PLUS(x[ 8],x[ 4]),13));
-    x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[12],x[ 8]),18));
-    x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 5],x[ 1]), 7));
-    x[13] = XOR(x[13],ROTATE(PLUS(x[ 9],x[ 5]), 9));
-    x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[13],x[ 9]),13));
-    x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 1],x[13]),18));
-    x[14] = XOR(x[14],ROTATE(PLUS(x[10],x[ 6]), 7));
-    x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[14],x[10]), 9));
-    x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 2],x[14]),13));
-    x[10] = XOR(x[10],ROTATE(PLUS(x[ 6],x[ 2]),18));
-    x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[15],x[11]), 7));
-    x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 3],x[15]), 9));
-    x[11] = XOR(x[11],ROTATE(PLUS(x[ 7],x[ 3]),13));
-    x[15] = XOR(x[15],ROTATE(PLUS(x[11],x[ 7]),18));
-    if ( i != 1 ){
-      x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[ 0],x[ 3]), 7));
-      x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[ 1],x[ 0]), 9));
-      x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[ 2],x[ 1]),13));
-      x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[ 3],x[ 2]),18));
-      x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 5],x[ 4]), 7));
-      x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 6],x[ 5]), 9));
-      x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 7],x[ 6]),13));
-      x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 4],x[ 7]),18));
-      x[11] = XOR(x[11],ROTATE(PLUS(x[10],x[ 9]), 7));
-      x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[11],x[10]), 9));
-      x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 8],x[11]),13));
-      x[10] = XOR(x[10],ROTATE(PLUS(x[ 9],x[ 8]),18));
-      x[12] = XOR(x[12],ROTATE(PLUS(x[15],x[14]), 7));
-      x[13] = XOR(x[13],ROTATE(PLUS(x[12],x[15]), 9));
-      x[14] = XOR(x[14],ROTATE(PLUS(x[13],x[12]),13));
-      x[15] = XOR(x[15],ROTATE(PLUS(x[14],x[13]),18));
-    }
+  for (i = 0; i < R ;i += 2) {
+    colround(x);
+    if ( i != R - 1 ) rowround(x);
   }
   if ( feedforward ) {
     for (i = 0;i < 16;++i) output[i] = PLUS(x[i],input[i]);
@@ -73,45 +118,14 @@ static void salsa(int R, u32 output[16], const u32 input[16], int feedforward) {
 }
 
 /* Inverse Salsa function */
-static void aslas(int R, u32 output[16], const u32 input[16]) {
+static void aslas(int R, int r, u32 output[16], const u32 input[16]) {
   u32 x[16];
   int i;
   for (i = 0; i < 16; ++i) x[i] = input[i];
-  for (i = 0; i < R; i += 2) {
-    if ( i > 0 || (R % 2) == 0 ) {
-      x[15] = XOR(x[15],ROTATE(PLUS(x[14],x[13]),18));
-      x[14] = XOR(x[14],ROTATE(PLUS(x[13],x[12]),13));
-      x[13] = XOR(x[13],ROTATE(PLUS(x[12],x[15]), 9));
-      x[12] = XOR(x[12],ROTATE(PLUS(x[15],x[14]), 7));
-      x[10] = XOR(x[10],ROTATE(PLUS(x[ 9],x[ 8]),18));
-      x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 8],x[11]),13));
-      x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[11],x[10]), 9));
-      x[11] = XOR(x[11],ROTATE(PLUS(x[10],x[ 9]), 7));
-      x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 4],x[ 7]),18));
-      x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 7],x[ 6]),13));
-      x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 6],x[ 5]), 9));
-      x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 5],x[ 4]), 7));
-      x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[ 3],x[ 2]),18));
-      x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[ 2],x[ 1]),13));
-      x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[ 1],x[ 0]), 9));
-      x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[ 0],x[ 3]), 7));
-    }
-    x[15] = XOR(x[15],ROTATE(PLUS(x[11],x[ 7]),18));
-    x[11] = XOR(x[11],ROTATE(PLUS(x[ 7],x[ 3]),13));
-    x[ 7] = XOR(x[ 7],ROTATE(PLUS(x[ 3],x[15]), 9));
-    x[ 3] = XOR(x[ 3],ROTATE(PLUS(x[15],x[11]), 7));
-    x[10] = XOR(x[10],ROTATE(PLUS(x[ 6],x[ 2]),18));
-    x[ 6] = XOR(x[ 6],ROTATE(PLUS(x[ 2],x[14]),13));
-    x[ 2] = XOR(x[ 2],ROTATE(PLUS(x[14],x[10]), 9));
-    x[14] = XOR(x[14],ROTATE(PLUS(x[10],x[ 6]), 7));
-    x[ 5] = XOR(x[ 5],ROTATE(PLUS(x[ 1],x[13]),18));
-    x[ 1] = XOR(x[ 1],ROTATE(PLUS(x[13],x[ 9]),13));
-    x[13] = XOR(x[13],ROTATE(PLUS(x[ 9],x[ 5]), 9));
-    x[ 9] = XOR(x[ 9],ROTATE(PLUS(x[ 5],x[ 1]), 7));
-    x[ 0] = XOR(x[ 0],ROTATE(PLUS(x[12],x[ 8]),18));
-    x[12] = XOR(x[12],ROTATE(PLUS(x[ 8],x[ 4]),13));
-    x[ 8] = XOR(x[ 8],ROTATE(PLUS(x[ 4],x[ 0]), 9));
-    x[ 4] = XOR(x[ 4],ROTATE(PLUS(x[ 0],x[12]), 7));
+  if ( R % 2 == 1 ) { locround(x); R = R - 1; }
+  for (i = R; i > r; i -= 2) {
+    worround(x);
+    if ( i != r+1 ) locround(x);
   }
   for (i = 0;i < 16;++i) output[i] = x[i];
 }
@@ -232,12 +246,12 @@ static void fixCIV(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, CIV *civ, in
   }
 }
 
-static void fixFPSBs(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, PNB *fpnb, int ivs){
+static void fixFPSBs(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, PNB *fpsb, int ivs, PNB *fpnb){
   if (fpnb!=NULL) {
     if (ivs == 0) ivsetup(old,v,aux,NULL);
     else { // Fix FPNBs of the IV
       for ( int i = 0 ; i < fpnb->n; ++i ) {
-        if (isiv(fpnb->word[i])) copybit(X0,X1,aux,fpnb->word[i],fpnb->bit[i]);
+        if (isiv(fpsb->word[i])) copybit(X0,X1,aux,fpsb->word[i],fpsb->bit[i]);
       }
     }
   }
@@ -267,7 +281,7 @@ static int delta(ECRYPT_ctx *Z0, ECRYPT_ctx *Z1, int *OD){
 }
 
 /* Compute bias */
-static float biasformula(int ones, int Niv, int absolute) {
+static float biasformula(unsigned int ones, unsigned int Niv, int absolute) {
   if (absolute) return fabs(2.0*ones/Niv -1);
   else return (2.0*ones)/Niv-1;
 }
@@ -278,7 +292,7 @@ static float highest(float bias0, float bias1){
 }
 
 /* Return best bias between two threads */
-static float bestbias(int ones0, int ones1, int Niv, int absolute) {
+static float bestbias(unsigned int ones0, unsigned int ones1, unsigned int Niv, int absolute) {
   float bias0,bias1;
   bias0 = biasformula(ones0,Niv,1);
   bias1 = biasformula(ones1,Niv,1);
@@ -330,7 +344,7 @@ void getFPSBs(PNB *fpnb, PNB *fpsb) {
 
 
 /* Estimate forward bias, conditioned optional */
-float getEd( int r, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
+float getEf( int r, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   ECRYPT_ctx X0, X1, aux;
   PNB fpsb;
   int ones00, ones01, ones10, ones11;
@@ -341,7 +355,7 @@ float getEd( int r, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
     ones00 = 0; ones01 = 0, ones10 = 0; ones11 = 0;
     for (int ivs = 0; ivs < Niv; ++ivs){
       ivsetup(new,v,&X0,&X1);
-      fixFPSBs(&X0,&X1,&aux,&fpsb,ivs);
+      fixFPSBs(&X0,&X1,&aux,&fpsb,ivs,fpnb);
       fixCIV(&X0,&X1,&aux,civ,ivs);
       setID(&X0,&X1,ID);
       if ( civ != NULL ) {
@@ -367,28 +381,28 @@ float getEd( int r, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
 }
 
 /* Auxiliar thread function for neutrality */
-static int backflip(ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j, int *OD) {
+static int backflip(int R, int r, ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j, int *OD) {
   int D, G;
   ECRYPT_ctx Y0, Y1, Z0, Z1;
-  D = salsadelta(4,X0,X1,OD);
-  salsa(8,Z0.state,X0->state,1);
-  salsa(8,Z1.state,X1->state,1);
+  D = salsadelta(r,X0,X1,OD);
+  salsa(R,Z0.state,X0->state,1);
+  salsa(R,Z1.state,X1->state,1);
   flip(X0,i,j); 
   flip(X1,i,j);
   for ( int w = 0; w < 16; ++w ) {
     Z0.state[w] = MINUS(Z0.state[w],X0->state[w]);
     Z1.state[w] = MINUS(Z1.state[w],X1->state[w]);
   }
-  aslas(4,Y0.state,Z0.state);
-  aslas(4,Y1.state,Z1.state);
+  aslas(R,r,Y0.state,Z0.state);
+  aslas(R,r,Y1.state,Z1.state);
   G = delta(&Y0,&Y1,OD);
   return 1 - (D ^ G);
 }
 
 /* Compute neutrality measure of a bit */
-static float neutrality(int i, int j, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
+static float neutrality(int R, int r, int i, int j, int *ID, int *OD, CIV *civ, PNB *fpnb, unsigned int Nk, unsigned int Niv) {
   ECRYPT_ctx X0, X1, Y0, Y1, Z0, Z1, aux;
-  int equal00, equal01, equal10, equal11;
+  unsigned int equal00, equal01, equal10, equal11;
   PNB fpsb;
   float bias[Nk], bias0, bias1;
   getFPSBs(fpnb,&fpsb);
@@ -397,23 +411,23 @@ static float neutrality(int i, int j, int *ID, int *OD, CIV *civ, PNB *fpnb, int
     equal00 = 0; equal01 = 0; equal10 = 0; equal11 = 0;
     for (int ivs = 0; ivs < Niv; ++ivs){
       ivsetup(new,v,&X0,&X1);
-      fixFPSBs(&X0,&X1,&aux,&fpsb,ivs);
+      fixFPSBs(&X0,&X1,&aux,&fpsb,ivs,fpnb);
       fixCIV(&X0,&X1,&aux,civ,ivs);
       setID(&X0,&X1,ID);
       if ( civ != NULL ) {
         if ( civ->len == 2){
           set0(&X0,&X1,civ->word[1],civ->end[1]); 
           set0(&X0,&X1,civ->word[0],civ->end[0]); 
-          equal00 += backflip(&X0,&X1,i,j,OD);
+          equal00 += backflip(R,r,&X0,&X1,i,j,OD);
           set1(&X0,&X1,civ->word[0],civ->end[0]); 
-          equal01 += backflip(&X0,&X1,i,j,OD);
+          equal01 += backflip(R,r,&X0,&X1,i,j,OD);
           set1(&X0,&X1,civ->word[1],civ->end[1]); 
         }
         set1(&X0,&X1,civ->word[0],civ->end[0]); 
-        equal11 += backflip(&X0,&X1,i,j,OD);
+        equal11 += backflip(R,r,&X0,&X1,i,j,OD);
         set0(&X0,&X1,civ->word[0],civ->end[0]); 
       }  
-      equal10 += backflip(&X0,&X1,i,j,OD);
+      equal10 += backflip(R,r,&X0,&X1,i,j,OD);
     }
     if ( civ == NULL ) bias[keys] = biasformula(equal10,Niv,0);
     else if ( civ->len == 1) bias[keys] = bestbias(equal11,equal10,Niv,0);
@@ -441,12 +455,12 @@ static void updatePNB(PNB *pnb, float bias, float gama, int i, int j, int flag){
 }
 
 /* Compute backwards probabilistic neutral bits */
-void getBPNBs( PNB *bpnb, float gama, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
+void getBPNBs( PNB *bpnb, int R, int r, float gama, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   float bias;
   for ( int i = 0 ; i < 16 ; ++i ){
     if ( iskey(i)){
     for ( int j = 0 ; j < 32 ; ++j ) {
-      bias = neutrality(i,j,ID,OD,civ,fpnb,Nk,Niv);
+      bias = neutrality(R,r,i,j,ID,OD,civ,fpnb,Nk,Niv);
       printf("(%d,%d) bias %f\n",i,j,bias);
       updatePNB(bpnb,bias,gama,i,j,1);
     }
@@ -518,27 +532,27 @@ void getFPNBs(PNB *fpnb, float gama, int r, int *ID, int *OD, CIV *civ, int Nk, 
 }
 
 /* Compute backwards equality f = g */
-static int backwards(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g, int *OD) {
+static int backwards(int R, int r, ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g, int *OD) {
   ECRYPT_ctx Y0, Y1, Z0, Z1;
-  salsa(8,Z0.state,X0f->state,1);
-  salsa(8,Z1.state,X1f->state,1);
+  salsa(R,Z0.state,X0f->state,1);
+  salsa(R,Z1.state,X1f->state,1);
   for ( int w = 0; w < 16; ++w ) {
     Z0.state[w] = MINUS(Z0.state[w],X0g->state[w]);
     Z1.state[w] = MINUS(Z1.state[w],X1g->state[w]);
   }
-  aslas(4,Y0.state,Z0.state);
-  aslas(4,Y1.state,Z1.state);
+  aslas(R,r,Y0.state,Z0.state);
+  aslas(R,r,Y1.state,Z1.state);
   return delta(&Y0,&Y1,OD);      
 }
 
-static int fequalg(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g, int *OD){
-  int f = salsadelta(4,X0f,X1f,OD);
-  int g = backwards(X0f,X1f,X0g,X1g,OD);
+static int fequalg(int R, int r, ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g, int *OD){
+  int f = salsadelta(r,X0f,X1f,OD);
+  int g = backwards(R,r,X0f,X1f,X0g,X1g,OD);
   return 1 - ( f ^ g );
 }
 
 /* Estimate backwards bias */
-float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
+float getEg(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv, int R, int r) {
   ECRYPT_ctx X0f, X1f, X0g, X1g, aux;
   int equal00, equal01, equal10, equal11;
   PNB fpsb;
@@ -553,8 +567,8 @@ float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
     for ( int ivs = 0 ; ivs < Niv ; ++ivs ){
       ivsetup(new,v,&X0f,&X1f);
       ivsetup(old,v,&X0g,&X1g);
-      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs);
-      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs);
+      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs,fpnb);
+      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs,fpnb);
       fixCIV(&X0f,&X1f,&aux,civ,ivs);
       fixCIV(&X0g,&X1g,&aux,civ,ivs);
       setID(&X0f,&X1f,ID);
@@ -565,20 +579,20 @@ float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
           set0(&X0g,&X1g,civ->word[1],civ->end[1]);
           set0(&X0f,&X1f,civ->word[0],civ->end[0]); 
           set0(&X0g,&X1g,civ->word[0],civ->end[0]);
-          equal00 += fequalg(&X0f,&X1f,&X0g,&X1g,OD);
+          equal00 += fequalg(R,r,&X0f,&X1f,&X0g,&X1g,OD);
           set1(&X0f,&X1f,civ->word[0],civ->end[0]); 
           set1(&X0g,&X1g,civ->word[0],civ->end[0]);
-          equal01 += fequalg(&X0f,&X1f,&X0g,&X1g,OD);
+          equal01 += fequalg(R,r,&X0f,&X1f,&X0g,&X1g,OD);
           set1(&X0f,&X1f,civ->word[1],civ->end[1]); 
           set1(&X0g,&X1g,civ->word[1],civ->end[1]);
         }
         set1(&X0f,&X1f,civ->word[0],civ->end[0]); 
         set1(&X0g,&X1g,civ->word[0],civ->end[0]);
-        equal11 += fequalg(&X0f,&X1f,&X0g,&X1g,OD);
+        equal11 += fequalg(R,r,&X0f,&X1f,&X0g,&X1g,OD);
         set0(&X0f,&X1f,civ->word[0],civ->end[0]); 
         set0(&X0g,&X1g,civ->word[0],civ->end[0]);
       }  
-      equal10 += fequalg(&X0f,&X1f,&X0g,&X1g,OD);
+      equal10 += fequalg(R,r,&X0f,&X1f,&X0g,&X1g,OD);
     }
     if ( civ == NULL ) Ea[keys] = biasformula(equal10,Niv,1);
     else if ( civ->len == 1) Ea[keys] = bestbias(equal11,equal10,Niv,1);
@@ -587,9 +601,9 @@ float getEa(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
   return median(Ea,Nk);
 }
 
-float getE(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
+float getE(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, unsigned int Nk, unsigned int Niv, int R, int r) {
   ECRYPT_ctx X0f, X1f, X0g, X1g, aux;
-  int ones00, ones01, ones10, ones11;
+  unsigned int ones00, ones01, ones10, ones11;
   PNB fpsb;
   float E[Nk];
   getFPSBs(fpnb,&fpsb);
@@ -599,11 +613,11 @@ float getE(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
     keysetup(old,k,&X0g,&X1g);
     fixPNKBs(-1,bpnb,&X0g,&X1g);
     ones00 = 0; ones01 = 0; ones10 = 0; ones11 = 0;
-    for ( int ivs = 0 ; ivs < Niv ; ++ivs ){
+    for ( unsigned int ivs = 0 ; ivs < Niv ; ++ivs ){
       ivsetup(new,v,&X0f,&X1f);
       ivsetup(old,v,&X0g,&X1g);
-      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs);
-      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs);
+      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs,fpnb);
+      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs,fpnb);
       fixCIV(&X0f,&X1f,&aux,civ,ivs);
       fixCIV(&X0g,&X1g,&aux,civ,ivs);
       setID(&X0g,&X1g,ID);
@@ -613,20 +627,20 @@ float getE(PNB *bpnb, int *ID, int *OD, CIV *civ, PNB *fpnb, int Nk, int Niv) {
           set0(&X0g,&X1g,civ->word[1],civ->end[1]);
           set0(&X0f,&X1f,civ->word[0],civ->end[0]); 
           set0(&X0g,&X1g,civ->word[0],civ->end[0]);
-          ones00 += backwards(&X0f,&X1f,&X0g,&X1g,OD);
+          ones00 += backwards(R,r,&X0f,&X1f,&X0g,&X1g,OD);
           set1(&X0f,&X1f,civ->word[0],civ->end[0]); 
           set1(&X0g,&X1g,civ->word[0],civ->end[0]);
-          ones01 += backwards(&X0f,&X1f,&X0g,&X1g,OD);
+          ones01 += backwards(R,r,&X0f,&X1f,&X0g,&X1g,OD);
           set1(&X0f,&X1f,civ->word[1],civ->end[1]); 
           set1(&X0g,&X1g,civ->word[1],civ->end[1]);
         }
         set1(&X0f,&X1f,civ->word[0],civ->end[0]); 
         set1(&X0g,&X1g,civ->word[0],civ->end[0]);
-        ones11 += backwards(&X0f,&X1f,&X0g,&X1g,OD);
+        ones11 += backwards(R,r,&X0f,&X1f,&X0g,&X1g,OD);
         set0(&X0f,&X1f,civ->word[0],civ->end[0]); 
         set0(&X0g,&X1g,civ->word[0],civ->end[0]);
       }  
-      ones10 += backwards(&X0f,&X1f,&X0g,&X1g,OD);
+      ones10 += backwards(R,r,&X0f,&X1f,&X0g,&X1g,OD);
     }
     if ( civ == NULL ) E[keys] = biasformula(ones10,Niv,1);
     else if ( civ->len == 1) E[keys] = bestbias(ones11,ones10,Niv,1);

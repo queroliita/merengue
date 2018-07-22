@@ -3,7 +3,7 @@
 #include <sys/time.h>
 
 /*
-gcc testsuite.c testsuite
+gcc testsuite.c -o testsuite -lm
 ./testsuite {ID word} {ID bit} {OD word} {OD bit}
 */
 
@@ -15,7 +15,8 @@ gcc testsuite.c testsuite
    ID = {7,31} OD = {1,31} CIV1 = {7,19,12} CIV2 = {6,25,10}
  */
 
-int ID[2], OD[2], r, Nk, Niv;
+int ID[2], OD[2], R, r, eNk, eNiv;
+unsigned int Nk, Niv;
 float th;
 PNB bpnb, fpnb, fpsb;
 CIV civ;
@@ -86,7 +87,6 @@ static clock_t timeit(clock_t t){
   return t;
 }
 
-
 int main(int argc, char *argv[])
 { 
   /*
@@ -119,29 +119,48 @@ int main(int argc, char *argv[])
   clock_t t;
   t = clock(); 
 
+  /* TEST : Salsa and Alsa working */
+  /*
+  ECRYPT_ctx X, Z, Y;
+  bitstring(k,32);
+  ECRYPT_keysetup(&X,k,256,64);
+  bitstring(v,16);
+  ECRYPT_ivsetup(&X,v);
+  salsa(4,Z.state,X.state,0);
+  prettyprint(&Z);
+  salsa(8,Z.state,X.state,0);
+  aslas(8,4,Y.state,Z.state);
+  prettyprint(&Y);
+  salsa(5,Z.state,X.state,0);
+  prettyprint(&Z);
+  salsa(9,Z.state,X.state,0);
+  aslas(9,5,Y.state,Z.state);
+  prettyprint(&Y);
+  */
+
   /* TEST : get Ed -> 277 seconds */
   /*
   r = 4; Nk = pow(2,12); Niv = pow(2,12);
   ID[0] = 7; ID[1] = 31; OD[0] = 1; OD[1] = 14;
   printf("|Ed*| = %f : ID = [%d,%d]\n", 
-    getEd(r,ID,OD,NULL,NULL,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,NULL,NULL,Nk,Niv),ID[0],ID[1]);
   printf("|Ed*| = %f : ID = [%d,%d] : CIV X7_12\n", 
-    getEd(r,ID,OD,&civx7,NULL,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,&civx7,NULL,Nk,Niv),ID[0],ID[1]);
   printf("|Ed*| = %f : ID = [%d,%d] : CIV X7_12 X6_10\n", 
-    getEd(r,ID,OD,&civx7x6,NULL,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,&civx7x6,NULL,Nk,Niv),ID[0],ID[1]);
 
   printf("|Ed*| = %f : ID = [%d,%d] :                 : FPNB 47\n", 
-    getEd(r,ID,OD,NULL,&fpnb_,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,NULL,&fpnb_,Nk,Niv),ID[0],ID[1]);
   printf("|Ed*| = %f : ID = [%d,%d] : CIV X7_12       : FPNB 52\n", 
-    getEd(r,ID,OD,&civx7,&fpnbx7,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,&civx7,&fpnbx7,Nk,Niv),ID[0],ID[1]);
   printf("|Ed*| = %f : ID = [%d,%d] : CIV X7_12 X6_10 : FPNB 54\n", 
-    getEd(r,ID,OD,&civx7x6,&fpnbx7x6,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,&civx7x6,&fpnbx7x6,Nk,Niv),ID[0],ID[1]);
 
   ID[0] = 8; ID[1] = 31; OD[0] = 6; OD[1] = 14;
   printf("|Ed*| = %f : ID = [%d,%d]\n", 
-    getEd(r,ID,OD,NULL,NULL,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,NULL,NULL,Nk,Niv),ID[0],ID[1]);
   printf("|Ed*| = %f : ID = [%d,%d] : CIV X7_12\n", 
-    getEd(r,ID,OD,&civx8,NULL,Nk,Niv),ID[0],ID[1]);
+    getEf(r,ID,OD,&civx8,NULL,Nk,Niv),ID[0],ID[1]);
   */
 
   /* TEST : get FPNBs */
@@ -172,19 +191,20 @@ int main(int argc, char *argv[])
   */
   
 
+
   /* TEST 2: get BPNBs */
-  /*
-  r = 4; th = 0.12; Nk = pow(2,10); Niv = pow(2,14);
+  
+  R = 9; r = 5; th = 0.12; eNk = 10 ; eNiv = 14; Nk = pow(2,eNk); Niv = pow(2,eNiv);
   ID[0] = 7; ID[1] = 31; OD[0] = 1; OD[1] = 14;
 
-  getBPNBs(&bpnb,0.12,ID,OD,NULL);                      // 1h 30m
+  getBPNBs(&bpnb,R,r,th,ID,OD,NULL,NULL,Nk,Niv);                      // 1h 30m
   for (int i = 0; i < bpnb.len; i++) {
     if ( iskey(bpnb.word[i]) ) printf("BPNKB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
-    else printf("BPNB (%d,%d) with neutrality measure = %f\n",
-      bpnb.word[i],bpnb.bit[i],bpnb.bias[i]);
-  } printf("-> %d BPNBs (%d key) : ID=[%d,%d]\n",
-    bpnb.len,bpnb.n,ID[0],ID[1]);
-  
+    else printf("BPNB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
+    printf("with neutrality measure = %f\n",bpnb.bias[i]);
+  } printf("-> %d BPNBs (%d key) : ID=[%d,%d] : Nk 2^%d Niv 2^%d\n",
+    bpnb.len,bpnb.n,ID[0],ID[1],eNk,eNiv);
+  /*
   getBPNBs(&bpnb,0.12,ID,OD,&civx7);                    // 3h 30m
   for (int i = 0; i < bpnb.len; i++) {
     if ( iskey(bpnb.word[i]) ) printf("BPNKB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
@@ -193,57 +213,65 @@ int main(int argc, char *argv[])
   } printf("-> Found %d BPNBs (%d key) : ID=[%d,%d] : CIV X7_12\n",
     bpnb.len,bpnb.n,ID[0],ID[1]);
   
-  getBPNBs(&bpnb,0.12,ID,OD,&civx7x6);                  // 7h
+  getBPNBs(&bpnb,R,r,th,ID,OD,&civx7x6,NULL,Nk,Niv);                  // 7h
   for (int i = 0; i < bpnb.len; i++) {
     if ( iskey(bpnb.word[i]) ) printf("BPNKB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
-    else printf("BPNB (%d,%d) with neutrality measure = %f\n",
-      bpnb.word[i],bpnb.bit[i],bpnb.bias[i]);
-  } printf("-> Found %d BPNBs (%d key) : ID=[%d,%d] : CIV X7_12 X6_10\n",
-    bpnb.len,bpnb.n,ID[0],ID[1]);
+    else printf("BPNB (%d,%d) ",bpnb.word[i],bpnb.bit[i]);
+    printf("with neutrality measure = %f\n",bpnb.bias[i]);
+  } printf("-> Found %d BPNBs (%d key) : ID=[%d,%d] : R=%d r=%d : Nk 2^%d Niv^%d : CIV X7_12 X6_10\n",
+    bpnb.len,bpnb.n,ID[0],ID[1],R,r,eNk,eNiv);
   */
 
 
 
   /* TEST : get Ea */
 
-  r = 4; Nk = pow(2,10); Niv = pow(2,26);
+  r = 4; eNk = 8. ; eNiv = 25. ; Nk = pow(2,eNk); Niv = pow(2,eNiv);
   ID[0] = 7; ID[1] = 31; OD[0] = 1; OD[1] = 14; 
-  /*
-  printf("|Ea*| = %f : BPNB 36\n",
-    getEa(&bpnb_1_14,ID,OD,NULL,NULL,Nk,Niv));                // 1h 30m -> 0.002600
-  printf("|Ea*| = %f : BPNB 37 : CIV X7_12\n",
-    getEa(&pnbx7,ID,OD,&civx7,NULL,Nk,Niv));                    // 2d 21h 2^36 -> 0.001496
-  printf("|Ea*| = %f : BPNB 38 : CIV X7_12 X6_10\n",
-    getEa(&bpnbx7x6,ID,OD,&civx7x6,NULL,Nk,Niv));
-  printf("|Ea*| = %f : BPNB 36 :                 : FPNB 47\n",
-    getEa(&bpnb_1_14,ID,OD,NULL,&fpnb_,Nk,Niv));
-  printf("|Ea*| = %f : BPNB 37 : CIV X7_12       : FPNB 52\n",
-    getEa(&bpnbx7,ID,OD,&civx7,&fpnbx7,Nk,Niv));
+  
+  /*                                                             
+  printf("|Ea*| = %f : Nk 2^%d Niv 2^%d : BPNB 36\n",             // 1d 5h  2^10 2^26? -> 0.002266 :: 1h 2^10 2^21 -> 0.002357
+    getEg(&bpnb_1_14,ID,OD,NULL,NULL,Nk,Niv),eNk,eNiv);           // 1h 15m -> 0.0015625 2^20 2^11 :: // 7 h -> 0.006348 Nk 20 Niv 14
+  
+  printf("|Ea*| = %f : Nk 2^%d Niv 2^%d : BPNB 37 : CIV X7_12\n",     // 2h 20m -> 0.002007 2^10 2^21
+    getEg(&bpnbx7,ID,OD,&civx7,NULL,Nk,Niv),eNk,eNiv);                // 2d 21h 2^36 -> 0.001496
+  
+  printf("|Ea*| = %f : Nk 2^%d Niv 2^%d : BPNB 38 : CIV X7_12 X6_10\n",  // 4h 30m 2^20 2^11 -> 0.031250 :: 
+    getEg(&bpnbx7x6,ID,OD,&civx7x6,NULL,Nk,Niv),eNk,eNiv);               // 7h     2^10 2^21 -> 0.001873 :: 5h 2^10 2^21 -> 0.001811
+  
+  printf("|Ea*| = %f : Nk 2^%d Niv 2^%d : BPNB 36 :                 : FPNB 47\n",  // 3h 30m 2^10 2^21 -> 0.0025
+    getEg(&bpnb_1_14,ID,OD,NULL,&fpnb_,Nk,Niv),eNk,eNiv);                         
+  
+  printf("|Ea*| = %f : Nk 2^%d Niv 2^%d : BPNB 37 : CIV X7_12       : FPNB 52\n",  // 5h 2^10 2^21 -> 0.001969
+    getEg(&bpnbx7,ID,OD,&civx7,&fpnbx7,Nk,Niv),eNk,eNiv);
+  
+  printf("|Ea*| = %f : Nk 2^%d Niv 2^%d : BPNB 38 : CIV X7_12 X6_10 : FPNB 54\n",       
+    getEg(&bpnbx7x6,ID,OD,&civx7x6,&fpnbx7x6,Nk,Niv),eNk,eNiv);                          // 5 h -> 0.031250 2^20 2^11
   */
-  printf("|Ea*| = %f : BPNB 38 : CIV X7_12 X6_10 : FPNB 54\n",
-    getEa(&bpnbx7x6,ID,OD,&civx7x6,&fpnbx7x6,Nk,Niv));
 
 
   /* TEST: get bias E */
-  /*
-  r = 4; Nk = pow(2,10); Niv = pow(2,26);
+  
+  r = 4; eNk = 4 ; eNiv = 21 ; Nk = pow(2,eNk); Niv = pow(2,eNiv);
   ID[0] = 7; ID[1] = 31; OD[0] = 1; OD[1] = 14; 
-  printf("|E*| = %f : BPNB 36 :\n",
-    getE(&pnb_1_14,ID,OD,NULL,NULL,Nk,Niv));
+  /*
+  printf("|E*| = %f : BPNB 36 :\n",                           // 1k 2^31 -> 0.005714 1h
+    getE(&bpnb_1_14,ID,OD,NULL,NULL,Nk,Niv));                 // 2^31 -> 0.015 40m
+
   printf("|E*| = %f : BPNB 37 : CIV X7_12\n",
-    getE(&pnbx7,ID,OD,&civx7,NULL,Nk,Niv));                    // 2d 21h
+    getE(&bpnbx7,ID,OD,&civx7,NULL,Nk,Niv));                    // 2d 21h
   printf("|E*| = %f : BPNB 38 : CIV X7_12 X6_10\n",
-    getE(&pnbx7,ID,OD,&civx7,NULL,Nk,Niv));
+    getE(&bpnbx7,ID,OD,&civx7,NULL,Nk,Niv));
   printf("|E*| = %f : BPNB 36 :                 : FPNB 47\n",
-    getE(&pnb_1_14,ID,OD,NULL,NULL,Nk,Niv));
+    getE(&bpnb_1_14,ID,OD,NULL,&fpnb_,Nk,Niv));
   printf("|E*| = %f : BPNB 37 : CIV X7_12       : FPNB 52\n",
-    getE(&pnbx7,ID,OD,&civx7,NULL,Nk,Niv));
+    getE(&bpnbx7,ID,OD,&civx7,&fpnbx7,Nk,Niv));
+  
   printf("|E*| = %f : BPNB 38 : CIV X7_12 X6_10 : FPNB 54\n",
-    getE(&pnbx7,ID,OD,&civx7,NULL,Nk,Niv));
-*/
+    getE(&bpnbx7,ID,OD,&civx7,&fpnbx7x6,Nk,Niv));
+  */
 
-
-  timeit(t);
+  t = timeit(t);
   
 }
 
