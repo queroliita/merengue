@@ -18,7 +18,7 @@ def transpose (X):
 
 def swap (row, col, X):
     X[row*4+col], X[col*4+row] = X[col*4+row], X[row*4+col]
-    return X                       # (i,j) <-> (j,i)
+    return X                        # (i,j) <-> (j,i)
 
 
 def QuarterRound(X, mode):
@@ -26,8 +26,8 @@ def QuarterRound(X, mode):
         X = transpose(X)            # Transpose before
     X = column(X,4,mode)            # First column starts from X4
     X = column(X,9,mode)            # Second column starts from X9
-    X = column_s(X,14,mode)         # Third column starts from X14
-    X = column_s(X,3,mode)          # Fourth column starts from X3
+    X = column(X,14,mode)           # Third column starts from X14
+    X = column(X,3,mode)            # Fourth column starts from X3
     if mode != "inv":               # Encrypt, Carrify, Linearize, Propagate, Differential,
         X = transpose(X)            # Transpose after operations on columns
     return X
@@ -46,12 +46,12 @@ def column(X, k, mode):
 
 def ARX(a1, a2, r, x, mode):
     if mode == "pda":
-        return XOR(x, ROT(r, ADP(a1,a2,mode),mode),mode)
-    else: return XOR(x, ROT(r, ADD(a1,a2,mode),mode),mode)    # b (+)= [ (a + d) <<< r ]
+        return XOR(x, ROT(r, ADP(a1,a2),mode),mode)
+    else: return XOR(x, ROT(r, ADD(a1,a2,mode),mode),mode) # b (+)= [ (a + d) <<< r ]
 
 
 def ADD(A, B, mode):
-    if mode == "enc" :  # Encrypt
+    if mode == "enc" or mode == "inv" :  # Encrypt, Inverse
         added = ( bit2int(A) + bit2int(B) ) % 2**32   # Sum of two words
         return int2bit(added)
     elif mode == "pro": # Propagate
@@ -75,17 +75,15 @@ def ROT(r, o, mode):
 
 
 def XOR(A, B, mode):
-    if mode == "enc" or mode == "lin":  # Encrypt, Linear
-        xored = bit2int(A) ^ bit2int(B)
-        return int2bit(xored)           # Exclusive OR
-    elif mode == "pro":                 # Propagate
-        return ADD(A, B, mode)          # XORing dependencies acts like adding
-    elif mode == "car" or mode == "pda" # Carrify, Differential
+    if mode == "enc" or mode == "lin" or mode == "inv": # Encrypt, Linear, Inverse
+        return int2bit ( bit2int(A) ^ bit2int(B) )      # Exclusive OR
+    elif mode == "pro":                  # Propagate
+        return ADD(A, B, mode)           # XORing dependencies acts like adding
+    elif mode == "car" or mode == "pda": # Carrify, Differential
         if isinstance(A,list) and isinstance(B,list):
             return [ A[i]+B[i]-2*A[i]*B[i] for i in range(min(len(A),len(B),32))]
         else:
             return A+B-2*A*B
-
 
 ####################
 # INITIALIZE STATE #
@@ -108,7 +106,7 @@ def bitstring(bits):
     """
     if mode == "enc" or mode == "lin" :  # Encrypt, Linearized
         cryptogen = SystemRandom()
-        return [ [ str(cryptogen.randrange(2)) for i in range(32)] for j in range(bits/32)]
+        return [ [ str(cryptogen.randrange(2)) for i in range(32)] for j in range(bits/32)]
     elif mode == "car": # Carrify
         bs = [ [random.choice([0.0,1.0]) for _ in range(32)] for n in range(bits/32)]
         return bs
@@ -120,7 +118,7 @@ def diagonal(X, mode = None):
         X[5]  = hex2bit("3320646e") # c1
         X[10] = hex2bit("79622d32") # c2
         X[15] = hex2bit("6b206574") # c3
-    elif mode == "car"  # Carrify 
+    elif mode == "car":  # Carrify 
         X[0]  = hex2prb("61707865") # c0
         X[5]  = hex2prb("3320646e") # c1
         X[10] = hex2prb("79622d32") # c2
@@ -183,14 +181,16 @@ def Salsa (R, key, iv = None, ff = None, ID = None, bit = None):
 # Inverse Salsa #
 #################
 
-def Aslas(R,X):
+def Aslas(R,Z,X=None):
     mode = "inv"
-    Z = copy(X)
+    Y = copy(Z)
+    if X is not None:
+        Y = subtract(Z,X)
     if R % 2:
-        Z = transpose(Z)
+        Y = transpose(Y)
     for n in range(R):
-        Z = QuarterRound(Z,mode)
-    return Z
+        Y = QuarterRound(Y,mode)
+    return Y
 
 
 def feedbackwards(Z, iv, key=None):
@@ -232,7 +232,7 @@ def addition(Z,Y):
 
 
 ################################
-# Linear propagation functions #
+# Linear propagation functions #
 ################################
 
 def propagate (R, i, j):
@@ -287,9 +287,9 @@ def carrify(R, ff=None, key=None, iv=None, rand=None):
 
 def FA(A,B,C,n):
     """1 bit Full Adder"""
-    AxB, AyB = HA(A, B)             # HA(A,B) = A x B , A & B
-    AxBxC, AxByC = HA(AxB, C[n])    # HA(XOR(A,B),C) = (A x B) x C, (A x B) & C
-    C[(n-1)%32] = OR(AxByC, AyB)    # Update output carry
+    AxB, AyB = HA(A, B)             # HA(A,B) = A x B , A & B
+    AxBxC, AxByC = HA(AxB, C[n])    # HA(XOR(A,B),C) = (A x B) x C, (A x B) & C
+    C[(n-1)%32] = OR(AxByC, AyB)    # Update output carry
     return AxBxC                    # Return sum value
 
 def HA(A, B): return XOR(A,B), AND(A,B) # 1 bit Half Adder
@@ -303,7 +303,7 @@ def OR(A,B): return A + B - A * B
 # Linearized Salsa #
 ####################
 
-def linearized(R,key,iv,ff=True):
+def linearise(R,key,iv,ff=True):
     mode = "lin"
     X = [ [] for n in range(16)]    # Initialize "array"
     diagonal(X,mode)
@@ -321,7 +321,7 @@ def linearized(R,key,iv,ff=True):
 
 
 ##########################
-# Unroll Salsa functions #
+# Unroll Salsa functions #
 ##########################
 
 def rowof(p): return p / 4
@@ -348,25 +348,27 @@ def constant(X):
             return (word, bit, int(cnt))
     return False
 
-def unroll (R, p, q, mode):
+def unroll (R, p, q, text, mode):
     """
     Recursive inverse Salsa function.
-    Input   R   number of rounds
-            p   Salsa output word index
-            q   Salsa output bit index
-            mode  "ful" or "red"
-    Output  X   Updated dependency array
-            S   Updated dependency array
+    Input   R       number of rounds
+            p       Salsa output word index
+            q       Salsa output bit index
+            text    "ful" or "red"
+            mode    "1/2" or "3/4"
+    Output  X       Updated dependency array
+            S       Updated dependency array
     """
     if not R:
-        Z = [[0]*32 for _ in range(16)] # Initialize array
+        Z = [[0]*32 for _ in range(16)] # Initialize array
         Z[p][q] += 1                    # Arrived to initial cell
-        T = "X[%s][%s]" % (p,q)         # Stringfy operation
+        if mode == "lin": T = ""
+        else: T = "X[%s][%s]" % (p,q)   # Stringfy operation
         return Z, T
     if R % 2 == 0:                      # Rows
         p = trans4x4(p)                 # Transpose word index
     r = [7, 9, 13, 18]                  # Rotation constants
-    b = [4, 9, 14, 3]                   # Below diagonal words
+    b = [4, 9, 14, 3]                   # Below diagonal words
     col = colof(p)                      # Index of column used
     row = rowof(p)                      # Index of row used
     p1 = (p-4) % 16                     # Index of first word argument
@@ -374,38 +376,57 @@ def unroll (R, p, q, mode):
     k = colof(row-rowof(b[col]))        # Order of present cell
     qr = (q - r[k]) % 32                # Index of rotated bit
     if R % 2 == 0:                      # Rows
-        p = trans(p)                    # Transpose word index
+        p  = trans4x4(p)                # Transpose word index
         p1 = trans4x4(p1)               # Transpose first word index
         p2 = trans4x4(p2)               # Transpose second word index
-    if k == 0:                          # Below diagonal
-        Z, T = xor( unroll(R-1,p,q), add(unroll(R-1,p1,qr), unroll(R-1,p2,qr),mode), mode )
-    elif k == 1:                        # Below-below diagonal
-        Z, T = xor( unroll(R-1,p,q), add(unroll(R,p1,qr), unroll(R-1,p2,qr),mode), mode )
-    else:                               # Above diagonal and diagonal
-        Z, T = xor( unroll(R-1,p,q), add(unroll(R,p1,qr), unroll(R,p2,qr)mode), mode )  
-    return Z, T                         # Return array and string
+    if mode == "xor":
+        if k == 0:                      # Below diagonal
+            Z, T = xor( unrollin(R-1,p,q,text,mode), add(unroll(R-1,p1,qr,text,mode), unroll(R-1,p2,qr,text,mode),text), text )
+        elif k == 1:                    # Below-below diagonal
+            Z, T = xor( unrollin(R-1,p,q,text,mode), add(unroll(R,p1,qr,text,mode), unroll(R-1,p2,qr,text,mode),text), text )
+        else:                           # Above diagonal and diagonal
+            Z, T = xor( unrollin(R-1,p,q,text,mode), add(unroll(R,p1,qr,text,mode), unroll(R,p2,qr,text,mode),text), text )
+    else: 
+        lsb = qr == 0;                  # Whether in LSB or not. No need to linearize, LSB already behaves like XOR
+        if k == 0:                      # Below diagonal
+            Z = xorlin( unroll(R-1,p,q,"",mode), addlin(unroll(R-1,p1,qr,"",mode), unroll(R-1,p2,qr,"",mode), unroll(R-1,p1,qr-1,"",mode),lsb ) )
+        elif k == 1:                    # Below-below diagonal
+            Z = xorlin( unroll(R-1,p,q,"",mode), addlin(unroll(R,p1,qr,"",mode), unroll(R-1,p2,qr,"",mode), unroll(R-1,p1,qr-1,"",mode)),lsb )
+        else:                           # Above diagonal and diagonal
+            Z = xorlin( unroll(R-1,p,q,"",mode), addlin(unroll(R,p1,qr,"",mode), unroll(R,p2,qr,"",mode), unroll(R-1,p1,qr-1,"",mode)),lsb )   
+    return Z, T                         # Return array and string
 
 
-def xor( (X1,S1), (X2,S2), mode ):
+def xorlin( X1, X2 ):
     X = mix(X1,X2)
-    if mode == "red":
+    return X
+
+def addlin( A, B, A_1, lsb):
+    X = mix(A,B)
+    if not lsb:
+        X = mix(X, A_1)
+    return X
+
+def xor( (X1,S1), (X2,S2), text ):
+    X = mix(X1,X2)
+    if text == "red":
         c1 = constant(X1)
         c2 = constant(X2)
         if c1 and c1[2]:    return X, neg(S2)
         elif c2 and c2[2]:  return X, neg(S1)
         elif c1:            return X, S2
         elif c2:            return X, S1
-    elif mode == "ful":     return X, "xor(%s , %s)" % (S1, S2)
+    elif text == "ful":     return X, "xor(%s , %s)" % (S1, S2)
 
-def add( (X1,S1), (X2,S2), mode ):
+def add( (X1,S1), (X2,S2), text ):
     X = mix(X1,X2)
-     if mode == "red":
+    if text == "red":
         c1 = constant(X1)           # (word1, bit1, value1)
-        c2 = constant(X2)           # (word2, bit2, value2)
+        c2 = constant(X2)           # (word2, bit2, value2)
         if c1 and c2:       return X, add2ct(c1[2], c2[2])  
         elif c1 and not c2: return X, add1ct(c1[2], S2)
         elif not c1 and c2: return X, add1ct(c2[2], S1)
-    elif mode == "ful"      return X, "add(%s , %s)" % (S1, S2)
+    elif text == "ful":     return X, "add(%s , %s)" % (S1, S2)
 
 def add1ct(x, S):
     if x:                       # 1 + expression
@@ -417,7 +438,7 @@ def add2ct(x1,x2):
     if carry:
         return "(0, carry(1))"
     return "%s" % (int(x1) ^ x2)     # ADD without carry behaves as XOR
-    
+
 def neg(S):
     if S[0:4] == "not(":
         return S[4:-1]          # not(not( * )) = *
@@ -435,62 +456,11 @@ def xordiag(X):
     return x 
 
 
-##############
-# Unroll 3/4 #
-##############
-
-def unrollin (R, p, q):
-    """
-    Recursive inverse Salsa function. Counts dependencies of linerized 3/4 probability
-    Input   R   number of rounds
-            p   Salsa output word index
-            q   Salsa output bit index
-    Output  X   Updated dependency array
-            S   Updated dependency array
-    """
-    if not R:
-        Z = [[0]*32 for _ in range(16)] # Initialize array
-        Z[p][q] += 1                    # Arrived to initial cell
-        return Z
-    if R % 2 == 0:                  # Rows
-        p = trans(p)                # Transpose word index
-    r = [7, 9, 13, 18]              # Rotation constants
-    b = [4, 9, 14, 3]               # Below diagonal words
-    col = colof(p)                  # Index of column used
-    row = rowof(p)                  # Index of row used
-    p1 = (p-4) % 16                 # Index of first word argument
-    p2 = (p-2*4) % 16               # Index of second word argument    
-    k = colof(row-rowof(b[col]))    # Order of present cell
-    qr = (q - r[k]) % 32            # Index of rotated bit
-    if R % 2 == 0:                  # Rows
-        p = trans(p)                # Transpose word index
-        p1 = trans(p1)              # Transpose first word index
-        p2 = trans(p2)              # Transpose second word index
-    lsb = qr == 0;                  # Whether in LSB or not. No need to linearize, LSB already behaves like XOR
-    if k == 0:                      # Below diagonal
-        Z = xorlin( unrollin(R-1,p,q), addlin(unrollin(R-1,p1,qr), unrollin(R-1,p2,qr), unrollin(R-1,p1,qr-1),lsb ) )
-    elif k == 1:                    # Below-below diagonal
-        Z = xorlin( unrollin(R-1,p,q), addlin(unrollin(R,p1,qr), unrollin(R-1,p2,qr), unrollin(R-1,p1,qr-1)),lsb )
-    else:                           # Above diagonal and diagonal
-        Z = xorlin( unrollin(R-1,p,q), addlin(unrollin(R,p1,qr), unrollin(R,p2,qr), unrollin(R-1,p1,qr-1)),lsb )   
-    return Z                        # Return array and string
-
-def xorlin( X1, X2 ):
-    X = mix(X1,X2)
-    return X
-
-def addlin( A, B, A_1, lsb):
-    X = mix(A,B)
-    if not lsb:
-        X = mix(X, A_1)
-    return X
-
-
 ##################################
 # Probabilistic Differential ARX #
 ##################################
 
-def diffMachine (R, Delta):
+def pdarx (R, Delta):
     """ Probabilistic Differentials of ARX """ 
     mode = "pda"
     for r in range(R):
@@ -511,10 +481,10 @@ def ADP(alfa,beta):
         A[0][1] = [1-carry, 0.5]   
         A[1][0] = [1-carry, 0.5]    
         A[1][1] = [carry, (1+carry)/2.0]
-        P[0][0] = (1-alfa[i][0])*(1-beta[i])
-        P[0][1] = (1-alfa[i][0])*beta[i]
-        P[1][0] = alfa[i][0]*(1-beta[i])
-        P[1][1] = alfa[i][0]*beta[i] 
+        P[0][0] = (1-alfa[i])*(1-beta[i])
+        P[0][1] = (1-alfa[i])*beta[i]
+        P[1][0] = alfa[i]*(1-beta[i])
+        P[1][1] = alfa[i]*beta[i] 
         carry = 0.0
         for n in range(2):
             for m in range(2):
@@ -597,7 +567,7 @@ def indexof(X, n):
     return idx
 
 
-def PNBs (R,p,q):
+def LNBs (R,p,q):
     """
     Compute truly neutral bits in whole block for a given differential
     Input   R   number of rounds for Salsa
@@ -605,28 +575,28 @@ def PNBs (R,p,q):
             q   index of bit  for OD
     Output  pnb list of PNBs found in whole block
     """
-    pnb = [ [] for _ in range(16)]
+    nb = [ [] for _ in range(16)]
     for i in range(16):
         for j in range(32):
             Z = propagate(R,i,j)
             if not Z[p][q]:
-                pnb[i].append(j)
-    return pnb
+                lnb[i].append(j)
+    return lnb
 
 
-def PNBkey (pnb):
+def LNBkey (lnb):
     """
     Select neutral bits corresponding to key positions
     Input   pnb list of PNBs found for whole block
     Output  n   number of PNBs found (the larger the better)
             key list of PNBs in key positions
     """
-    key = pnb[1:5]+pnb[11:15] # Key is X1,X2,X3,X4,X11,X12,X13,X14
+    key = lnb[1:5]+lnb[11:15] # Key is X1,X2,X3,X4,X11,X12,X13,X14
     n = sum([ len(k) for k in key if k ])
     return n, key
 
 
-def PNBest (R):
+def LNBest (R):
     """
     Compute best bits for OD that give the largest number of neutral bits
     Input   R   number of rounds
@@ -639,7 +609,7 @@ def PNBest (R):
     q = -1      # Initialize. Invariant q = [0..31]
     for P in range(16):
         for Q in range(32):
-            N, key = PNBkey(PNBs(R,P,Q))
+            N, key = LNBkey(PNBs(R,P,Q))
             if n < N:   # If larger number of PNBs
                 n = N   # Update value
                 p = P   # Update word coordinate
@@ -701,7 +671,7 @@ def check (R):
     i = -1                          # Initialize. Invariant i = [0..15]
     j = -1                          # Initialize. Invariant j = [0..31]
     for idx in range(16):           # For all words for ID
-        for jdx in range(32):       # For all bits in word for ID
+        for jdx in range(32):       # For all bits in word for ID
             Z = Salsa(R,idx,jdx)    # Execute Salsa with 5 rounds
             n = nnZ(Z)              # Number of dependencies for this ID
             d = min(n)              # Get minimum number
@@ -776,7 +746,7 @@ def mindep (Z):
 def maxeff (z):
     M = -1                      # Initialize. Invariant M >= 0
     B = [-1]                    # Initialize list of bit positions : [0..31]
-    for b, e in enumerate(z):   # List of times each bit is affected by ID
+    for b, e in enumerate(z):   # List of times each bit is affected by ID
         if M == e:              # If bit with same value
             B.append(b)         # Include also this bit index
         elif M < e:             # The larger the better
@@ -829,7 +799,7 @@ def prb2bit(prbs):
         return [ '0' if bit==0.0 else '1' for bit in prbs]
 
 ######################
-# Printing functions #
+# Printing functions #
 ######################
 
 def beautify (Z):
@@ -858,9 +828,9 @@ def prettytuple(TT,i,out):
 
 def question(D):
     return [ [ '?' if bit!=0.0 and bit!=1.0 else bit for bit in word ] for word in D]
-    
+
 def abbrev(D):
-    return [ [ "%.3f"%bit for bit in word ] for word in D]
+    return [ [ "%.5f"%bit for bit in word ] for word in D]
 
 def simply(S):
     global C
