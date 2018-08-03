@@ -2,7 +2,6 @@
 #include "parameters.h"
 #include <time.h>
 #include <sys/time.h>
-#include <string.h>
 
 /*
 gcc testsuite.c -o testsuite -lm
@@ -27,83 +26,98 @@ static clock_t timeit(clock_t t){
 int main(int argc, char *argv[])
 { 
   char stget[8], stret[100], stciv[8], stfpnb[8];
-  int ID[2], OD[2], R, r, eNk, eNiv;
-  unsigned int Nk;
-  unsigned long int Niv;
-  float th;
-  PNB *bpnb, *fpnb;
-  CIV *civ;
+  PNB pnb = { 0, 0, {0}, {0}, {0.0}};
+  int eNk, eNiv;
+
+  bpnb = NULL; fpnb = NULL; civ = NULL; 
   
   // Seed random generator
-  struct timeval t1;
-  gettimeofday(&t1, NULL);
-  srand(t1.tv_usec * t1.tv_sec);
+  struct timeval seed;
+  gettimeofday(&seed, NULL);
+  srand(seed.tv_usec * seed.tv_sec);
 
   printf("Compute: "); scanf("%s", stget);
-  printf("Nk = 2^"); scanf("%d", &eNk);
-  printf("Niv = 2^"); scanf("%d", &eNiv);
+
+  if ( !same(stget,"Ef")   
+    && !same(stget,"Eg") 
+    && !same(stget,"E")  
+    && !same(stget,"FPNB") 
+    && !same(stget,"BPNB") ) {
+    printf("Ef | Eg | E | FPNB | BPNB\n");
+    exit(1);
+  }
+
+  printf("Nk = 2^");  scanf("%d", &eNk ); Nk  = pow(2,eNk );
+  printf("Niv = 2^"); scanf("%d", &eNiv); Niv = pow(2,eNiv);
   printf("ID = "); scanf("%d %d", &ID[0], &ID[1]);
   printf("OD = "); scanf("%d %d", &OD[0], &OD[1]);
-  printf("CIV = "); scanf("%s",stciv);
-  printf("FPNB = "); scanf("%s",stfpnb);
+
+  if ( ID[0]<0  || ID[1]<0   || OD[0]<0  || OD[0]<0
+    || ID[0]>15 || ID[1]>31  || OD[0]>15 || OD[0]>31 ) { exit(1); }
+  
   printf("r = "); scanf("%d", &r);
 
-  if (strncmp(stget,"FPNB",8)!=0 && strncmp(stget,"Ef",8)!=0 ) {
+  if ( !same(stget,"FPNB") && !same(stget,"Ef") ) {
     printf("R = "); scanf("%d", &R);
-  } 
-  if (strncmp(stget,"FPNB",8)==0 || strncmp(stget,"BPNB",8)==0 ) {
+    if ( R < r ) { exit(1); }
+  } else { R = r; }
+
+  printf("CIV = "); scanf("%s",stciv);  
+
+  if      ( same(stciv,"7") ) { civ = &civx7; }
+  else if ( same(stciv,"8") ) { civ = &civx8; }
+  else if ( same(stciv,"6") ) { civ = &civx7x6; }
+
+  if (!same(stget,"FPNB")) {
+    printf("FPNB = "); scanf("%s",stfpnb);
+    if (stfpnb[0]!='n'){
+      if      ( civ == NULL ) { fpnb = &fpnb_; }
+      else if ( civ == &civx7 ) { fpnb = &fpnbx7; }
+      else if ( civ == &civx7x6 ) { fpnb = &fpnbx7x6; }
+    }
+  }
+
+  if (same(stget,"FPNB") || same(stget,"BPNB") ) {
     printf("th = "); scanf("%f",&th);
   }
 
-  if      (strncmp(stciv,"NULL",8)==0) { civ = NULL; }
-  else if (strncmp(stciv,"civx7",8)==0) { civ = &civx7; }
-  else if (strncmp(stciv,"civx8",8)==0) { civ = &civx8; }
-  else if (strncmp(stciv,"civx7x6",8)==0) { civ = &civx7x6; }
-
-  if      (strncmp(stfpnb,"NULL",8)==0) { fpnb = NULL; }
-  else if (strncmp(stfpnb,"fpnb_",8)==0) { fpnb = &fpnb_; }
-  else if (strncmp(stfpnb,"fpnbx7",8)==0) { fpnb = &fpnbx7; }
-  else if (strncmp(stfpnb,"fpnbx7x6",8)==0) { fpnb = &fpnbx7x6; } 
-
-  if (strncmp(stget,"Eg",8)==0 || strncmp(stget,"E",8)==0) {
-    if      (civ==NULL && R==8 && r==4 ){
-      if      ( OD[0]==1 && OD[1]==14 ) { bpnb = &bpnb_1_14; }
-      else if ( OD[0]==6 && OD[1]==14 ) { bpnb = &bpnb_6_14; }}
-    else if (civ==&civx7) { bpnb = &bpnbx7; }
-    else if (civ==&civx8) { bpnb = &bpnbx8; }
-    else if (civ==&civx7x6) { bpnb = &bpnbx7x6; }
+  if (same(stget,"Eg") || same(stget,"E") ) {
+    if ( R == 8 && r == 4 ) {
+      if      ( civ==NULL && OD[0]==1 && OD[1]==14 ) { bpnb = &bpnb_1_14; }
+      else if ( civ==NULL && OD[0]==6 && OD[1]==14 ) { bpnb = &bpnb_6_14; }
+      else if ( civ==&civx7 ) { bpnb = &bpnbx7; }
+      else if ( civ==&civx8 ) { bpnb = &bpnbx8; }
+      else if ( civ==&civx7x6 ) { bpnb = &bpnbx7x6; }
+    } else if ( R==9 && r==5 && OD[0]==9 && OD[1]==21 ) { bpnb = &bpnb_9_21; }
   }
-
-  Nk = pow(2,eNk); Niv = pow(2,eNiv);    
 
   clock_t t;
   t = clock(); 
 
-  if (strncmp(stget,"Ef",8)==0) {
-    printf("|Ef*|=%f",getEf(r,ID,OD,civ,fpnb,Nk,Niv));
+  if (same(stget,"Ef")) {
+    printf("|Ef*|=%f",getEf(stget));
   } 
-  else if (strncmp(stget,"Eg",8)==0) {
-    printf("|Eg*|=%f",getEg(bpnb,ID,OD,civ,fpnb,Nk,Niv,R,r));
+  else if (same(stget,"Eg")) {
+    printf("|Eg*|=%f",getEg());
   } 
-  else if (strncmp(stget,"E",8)==0) {
-    printf("|E*|=%f",getE(bpnb,ID,OD,civ,fpnb,Nk,Niv,R,r));
+  else if (same(stget,"E")) {
+    printf("|E*|=%f",getE());
   } 
-  else if (strncmp(stget,"FPNB",8)==0) {
-    getFPNBs(fpnb,th,r,ID,OD,civ,Nk,Niv);
-    for (int i = 0; i < fpnb->len; ++i) {
-      printf("FPNB (%d,%d) ",fpnb->word[i],fpnb->bit[i]);
-      printf("with neutrality measure = %f\n",fpnb->bias[i]);
-    } printf("-> %d FPNBs (%d iv)\n",fpnb->len,fpnb->n);   
+  else if (same(stget,"FPNB")) {
+    getPNBs('f',&pnb);
+    for (int i = 0; i < pnb.len; ++i) {
+      printf("FPNB (%d,%d) ",pnb.word[i],pnb.bit[i]);
+      printf("with neutrality measure = %f\n",pnb.bias[i]);
+    } printf("-> %d FPNBs (%d iv)\n",pnb.len,pnb.n);   
   } 
-  else if (strncmp(stget,"BPNB",8)==0) {
-    getBPNBs(bpnb,R,r,th,ID,OD,civ,fpnb,Nk,Niv);
-    for (int i = 0; i < bpnb->len; ++i) {
-      if ( iskey(bpnb->word[i]) ) printf("BPNKB (%d,%d) ",bpnb->word[i],bpnb->bit[i]);
-      else printf("BPNB (%d,%d) ",bpnb->word[i],bpnb->bit[i]);
-      printf("with neutrality measure = %f\n",bpnb->bias[i]);
-    } printf("-> %d BPNBs (%d key)\n",bpnb->len,bpnb->n);
+  else if (same(stget,"BPNB")) {
+    getPNBs('b',&pnb);
+    for (int i = 0; i < pnb.len; ++i) {
+      printf("BPNB (%d,%d) ",pnb.word[i],pnb.bit[i]);
+      printf("with neutrality measure = %f\n",pnb.bias[i]);
+    } printf("-> %d BPNBs (%d key)\n",pnb.len,pnb.n);
   }
-      
+
   t = timeit(t);
 
   return 0;
