@@ -27,7 +27,6 @@ typedef struct
 
 u8 k[32]; u8 v[16];
 const int new = 1, old = 0;
-int lenX = 2;
 
 CIV *civ;
 PNB *fpnb, *bpnb;
@@ -396,10 +395,6 @@ static int fequalg(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
 
 static float updatebias(unsigned long int count[4], int abso){
   if      ( civ == NULL )   return biasformula(count[2],abso);
@@ -422,6 +417,13 @@ static int measurement(char *flag, ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx 
   else if ( same(flag,"back") ) return backflip(X0f,X1f,i,j);
   else if ( same(flag,"for") )  return forflip(X0f,X1f,i,j);
   return 0;
+}
+
+static void set(int f, int g, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int word, int bit) {
+  if      ( f == 0 ) { set0(&Xf[0],word,bit); set0(&Xf[1],word,bit); }
+  else if ( f == 1 ) { set1(&Xf[0],word,bit); set1(&Xf[1],word,bit); }
+  if      ( g == 0 ) { set0(&Xg[0],word,bit); set0(&Xg[1],word,bit); }
+  else if ( g == 1 ) { set1(&Xg[0],word,bit); set1(&Xg[1],word,bit); }
 }
 
 // Compute neutrality measure of a bit (backwards or forwards)
@@ -449,22 +451,16 @@ static float neutrality(char *flag, int i, int j) {
       setID(&Xg[0],&Xg[1]);
       if ( civ != NULL ) {
         if ( civ->len == 2){
-          set0(&Xf[0],civ->word[1],civ->end[1]); set0(&Xf[1],civ->word[1],civ->end[1]);
-          set0(&Xg[0],civ->word[1],civ->end[1]); set0(&Xg[1],civ->word[1],civ->end[1]);
-          set0(&Xf[0],civ->word[0],civ->end[0]); set0(&Xf[1],civ->word[0],civ->end[0]);
-          set0(&Xg[0],civ->word[0],civ->end[0]); set0(&Xg[1],civ->word[0],civ->end[0]);
+          set(0,0,Xf,Xg,civ->word[1],civ->end[1]); // Second condition
+          set(0,0,Xf,Xg,civ->word[0],civ->end[0]); // First condition
           count[0] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
-          set1(&Xf[0],civ->word[0],civ->end[0]); set1(&Xf[1],civ->word[0],civ->end[0]);
-          set1(&Xg[0],civ->word[0],civ->end[0]); set1(&Xg[1],civ->word[0],civ->end[0]);
+          set(1,1,Xf,Xg,civ->word[0],civ->end[0]);
           count[1] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
-          set1(&Xf[0],civ->word[1],civ->end[1]); set1(&Xf[1],civ->word[1],civ->end[1]);
-          set1(&Xg[0],civ->word[1],civ->end[1]); set1(&Xg[1],civ->word[1],civ->end[1]);
+          set(1,1,Xf,Xg,civ->word[1],civ->end[1]);
         }
-        set1(&Xf[0],civ->word[0],civ->end[0]); set1(&Xf[1],civ->word[0],civ->end[0]);
-        set1(&Xg[0],civ->word[0],civ->end[0]); set1(&Xg[1],civ->word[0],civ->end[0]);
+        set(1,1,Xf,Xg,civ->word[0],civ->end[0]);
         count[3] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
-        set0(&Xf[0],civ->word[0],civ->end[0]); set0(&Xf[1],civ->word[0],civ->end[0]);
-        set0(&Xg[0],civ->word[0],civ->end[0]); set0(&Xg[1],civ->word[0],civ->end[0]);
+        set(0,0,Xf,Xg,civ->word[0],civ->end[0]);
       }  
       count[2] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
     }
