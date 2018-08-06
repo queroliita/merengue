@@ -95,23 +95,23 @@ int main(int argc, char *argv[])
   t = clock(); 
 
   if (same(stget,"Ef")) {
-    printf("|Ef*|=%f",getEf(stget));
+    printf("|Ef*|=%f",getbias(stget));
   } 
   else if (same(stget,"Eg")) {
-    printf("|Eg*|=%f",getEg());
+    printf("|Eg*|=%f",getbias(stget));
   } 
   else if (same(stget,"E")) {
-    printf("|E*|=%f",getE());
+    printf("|E*|=%f",getbias(stget));
   } 
   else if (same(stget,"FPNB")) {
-    getPNBs('f',&pnb);
+    getPNBs("for",&pnb);
     for (int i = 0; i < pnb.len; ++i) {
       printf("FPNB (%d,%d) ",pnb.word[i],pnb.bit[i]);
       printf("with neutrality measure = %f\n",pnb.bias[i]);
     } printf("-> %d FPNBs (%d iv)\n",pnb.len,pnb.n);   
   } 
   else if (same(stget,"BPNB")) {
-    getPNBs('b',&pnb);
+    getPNBs("back",&pnb);
     for (int i = 0; i < pnb.len; ++i) {
       printf("BPNB (%d,%d) ",pnb.word[i],pnb.bit[i]);
       printf("with neutrality measure = %f\n",pnb.bias[i]);
