@@ -27,6 +27,7 @@ typedef struct
 
 u8 k[32]; u8 v[16];
 const int new = 1, old = 0;
+int lenX = 2;
 
 CIV *civ;
 PNB *fpnb, *bpnb;
@@ -425,47 +426,47 @@ static int measurement(char *flag, ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx 
 
 // Compute neutrality measure of a bit (backwards or forwards)
 static float neutrality(char *flag, int i, int j) {
-  ECRYPT_ctx X0f, X1f, X0g, X1g, aux;
+  ECRYPT_ctx Xf[2], Xg[2], aux;
   PNB fpsb;
   unsigned long int count[4];
   float bias[Nk];
   int absol = flag[0]=='E';
-  X0f.null = 0; X1f.null = 0;
-  if ( !same(flag,"Eg") && !same(flag,"E") ) { X0g.null = 1; X1g.null = 1; }
+  Xf[0].null = 0; Xf[1].null = 0;
+  if ( !same(flag,"Eg") && !same(flag,"E") ) { Xg[0].null = 1; Xg[1].null = 1; }
   getFPSBs(&fpsb);
   for (unsigned int keys = 0; keys < Nk; ++keys){
-    keysetup(new,&X0f,&X1f);
-    keysetup(new,&X0g,&X1g);
+    keysetup(new,&Xf[0],&Xf[1]);
+    keysetup(new,&Xg[0],&Xg[1]);
     for (int n = 0; n < 4; n++ ) count[n] = 0;
     for (unsigned long int ivs = 0; ivs < Niv; ++ivs){
-      ivsetup(new,&X0f,&X1f);
-      ivsetup(old,&X0g,&X1g);
-      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs);
-      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs);
-      fixCIV(&X0f,&X1f,&aux,ivs);
-      fixCIV(&X0g,&X1g,&aux,ivs);
-      setID(&X0f,&X1f);
-      setID(&X0g,&X1g);
+      ivsetup(new,&Xf[0],&Xf[1]);
+      ivsetup(old,&Xg[0],&Xg[1]);
+      fixFPSBs(&Xf[0],&Xf[1],&aux,&fpsb,ivs);
+      fixFPSBs(&Xg[0],&Xg[1],&aux,&fpsb,ivs);
+      fixCIV(&Xf[0],&Xf[1],&aux,ivs);
+      fixCIV(&Xg[0],&Xg[1],&aux,ivs);
+      setID(&Xf[0],&Xf[1]);
+      setID(&Xg[0],&Xg[1]);
       if ( civ != NULL ) {
         if ( civ->len == 2){
-          set0(&X0f,civ->word[1],civ->end[1]); set0(&X1f,civ->word[1],civ->end[1]);
-          set0(&X0g,civ->word[1],civ->end[1]); set0(&X1g,civ->word[1],civ->end[1]);
-          set0(&X0f,civ->word[0],civ->end[0]); set0(&X1f,civ->word[0],civ->end[0]);
-          set0(&X0g,civ->word[0],civ->end[0]); set0(&X1g,civ->word[0],civ->end[0]);
-          count[0] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
-          set1(&X0f,civ->word[0],civ->end[0]); set1(&X1f,civ->word[0],civ->end[0]);
-          set1(&X0g,civ->word[0],civ->end[0]); set1(&X1g,civ->word[0],civ->end[0]);
-          count[1] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
-          set1(&X0f,civ->word[1],civ->end[1]); set1(&X1f,civ->word[1],civ->end[1]);
-          set1(&X0g,civ->word[1],civ->end[1]); set1(&X1g,civ->word[1],civ->end[1]);
+          set0(&Xf[0],civ->word[1],civ->end[1]); set0(&Xf[1],civ->word[1],civ->end[1]);
+          set0(&Xg[0],civ->word[1],civ->end[1]); set0(&Xg[1],civ->word[1],civ->end[1]);
+          set0(&Xf[0],civ->word[0],civ->end[0]); set0(&Xf[1],civ->word[0],civ->end[0]);
+          set0(&Xg[0],civ->word[0],civ->end[0]); set0(&Xg[1],civ->word[0],civ->end[0]);
+          count[0] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
+          set1(&Xf[0],civ->word[0],civ->end[0]); set1(&Xf[1],civ->word[0],civ->end[0]);
+          set1(&Xg[0],civ->word[0],civ->end[0]); set1(&Xg[1],civ->word[0],civ->end[0]);
+          count[1] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
+          set1(&Xf[0],civ->word[1],civ->end[1]); set1(&Xf[1],civ->word[1],civ->end[1]);
+          set1(&Xg[0],civ->word[1],civ->end[1]); set1(&Xg[1],civ->word[1],civ->end[1]);
         }
-        set1(&X0f,civ->word[0],civ->end[0]); set1(&X1f,civ->word[0],civ->end[0]);
-        set1(&X0g,civ->word[0],civ->end[0]); set1(&X1g,civ->word[0],civ->end[0]);
-        count[3] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
-        set0(&X0f,civ->word[0],civ->end[0]); set0(&X1f,civ->word[0],civ->end[0]);
-        set0(&X0g,civ->word[0],civ->end[0]); set0(&X1g,civ->word[0],civ->end[0]);
+        set1(&Xf[0],civ->word[0],civ->end[0]); set1(&Xf[1],civ->word[0],civ->end[0]);
+        set1(&Xg[0],civ->word[0],civ->end[0]); set1(&Xg[1],civ->word[0],civ->end[0]);
+        count[3] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
+        set0(&Xf[0],civ->word[0],civ->end[0]); set0(&Xf[1],civ->word[0],civ->end[0]);
+        set0(&Xg[0],civ->word[0],civ->end[0]); set0(&Xg[1],civ->word[0],civ->end[0]);
       }  
-      count[2] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
+      count[2] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
     }
     bias[keys] = updatebias(count,absol);
   }
