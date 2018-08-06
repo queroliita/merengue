@@ -145,14 +145,14 @@ static void bitstring(u8 *array, int bytes) {
 
 static void keysetup(int flag, ECRYPT_ctx *X0, ECRYPT_ctx *X1){
   if (flag == new) bitstring(k,32);
-  if (X0!=NULL) ECRYPT_keysetup(X0,k,256,64);
-  if (X1!=NULL) ECRYPT_keysetup(X1,k,256,64);
+  if (!X0->null) ECRYPT_keysetup(X0,k,256,64);
+  if (!X1->null) ECRYPT_keysetup(X1,k,256,64);
 }
 
 static void ivsetup(int flag, ECRYPT_ctx *X0, ECRYPT_ctx *X1){
   if (flag == new) bitstring(v,16);
-  if (X0!=NULL) ECRYPT_ivsetup(X0,v);
-  if (X1!=NULL) ECRYPT_ivsetup(X1,v);
+  if (!X0->null) ECRYPT_ivsetup(X0,v);
+  if (!X1->null) ECRYPT_ivsetup(X1,v);
 }
 
 // Answers whether the word position is a key
@@ -179,12 +179,12 @@ static int getbit(ECRYPT_ctx *X, int word, int bit){
 
 // Set X[word][bit] = 0 
 static void set0(ECRYPT_ctx *X, int word, int bit) {
-  if (X!=NULL) X->state[word] = X->state[word] & ~ ( 1 << bit );
+  if (!X->null) X->state[word] = X->state[word] & ~ ( 1 << bit );
 }
 
 // Set X[word][bit] = 1
 static void set1(ECRYPT_ctx *X, int word, int bit){
-  if (X!=NULL) X->state[word] = (X->state[word] & ~(1<<bit)) | (1<<bit);
+  if (!X->null) X->state[word] = (X->state[word] & ~(1<<bit)) | (1<<bit);
 }
 
 // Flip bit value 
@@ -425,34 +425,47 @@ static int measurement(char *flag, ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx 
 
 // Compute neutrality measure of a bit (backwards or forwards)
 static float neutrality(char *flag, int i, int j) {
-  ECRYPT_ctx X0, X1, aux;
+  ECRYPT_ctx X0f, X1f, X0g, X1g, aux;
   PNB fpsb;
   unsigned long int count[4];
   float bias[Nk];
   int absol = flag[0]=='E';
+  X0f.null = 0; X1f.null = 0;
+  if ( !same(flag,"Eg") && !same(flag,"E") ) { X0g.null = 1; X1g.null = 1; }
   getFPSBs(&fpsb);
   for (unsigned int keys = 0; keys < Nk; ++keys){
-    keysetup(new,&X0,&X1);
+    keysetup(new,&X0f,&X1f);
+    keysetup(new,&X0g,&X1g);
     for (int n = 0; n < 4; n++ ) count[n] = 0;
     for (unsigned long int ivs = 0; ivs < Niv; ++ivs){
-      ivsetup(new,&X0,&X1);
-      fixFPSBs(&X0,&X1,&aux,&fpsb,ivs);
-      fixCIV(&X0,&X1,&aux,ivs);
-      setID(&X0,&X1);
+      ivsetup(new,&X0f,&X1f);
+      ivsetup(old,&X0g,&X1g);
+      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs);
+      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs);
+      fixCIV(&X0f,&X1f,&aux,ivs);
+      fixCIV(&X0g,&X1g,&aux,ivs);
+      setID(&X0f,&X1f);
+      setID(&X0g,&X1g);
       if ( civ != NULL ) {
         if ( civ->len == 2){
-          set0(&X0,civ->word[1],civ->end[1]); set0(&X1,civ->word[1],civ->end[1]);
-          set0(&X0,civ->word[0],civ->end[0]); set0(&X1,civ->word[0],civ->end[0]);
-          count[0] += measurement(flag,&X0,&X1,NULL,NULL,i,j,r);
-          set1(&X0,civ->word[0],civ->end[0]); set1(&X1,civ->word[0],civ->end[0]);
-          count[1] += measurement(flag,&X0,&X1,NULL,NULL,i,j,r);
-          set1(&X0,civ->word[1],civ->end[1]); set1(&X1,civ->word[1],civ->end[1]);
+          set0(&X0f,civ->word[1],civ->end[1]); set0(&X1f,civ->word[1],civ->end[1]);
+          set0(&X0g,civ->word[1],civ->end[1]); set0(&X1g,civ->word[1],civ->end[1]);
+          set0(&X0f,civ->word[0],civ->end[0]); set0(&X1f,civ->word[0],civ->end[0]);
+          set0(&X0g,civ->word[0],civ->end[0]); set0(&X1g,civ->word[0],civ->end[0]);
+          count[0] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
+          set1(&X0f,civ->word[0],civ->end[0]); set1(&X1f,civ->word[0],civ->end[0]);
+          set1(&X0g,civ->word[0],civ->end[0]); set1(&X1g,civ->word[0],civ->end[0]);
+          count[1] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
+          set1(&X0f,civ->word[1],civ->end[1]); set1(&X1f,civ->word[1],civ->end[1]);
+          set1(&X0g,civ->word[1],civ->end[1]); set1(&X1g,civ->word[1],civ->end[1]);
         }
-        set1(&X0,civ->word[0],civ->end[0]); set1(&X1,civ->word[0],civ->end[0]);
-        count[3] += measurement(flag,&X0,&X1,NULL,NULL,i,j,r);
-        set0(&X0,civ->word[0],civ->end[0]); set0(&X1,civ->word[0],civ->end[0]);
+        set1(&X0f,civ->word[0],civ->end[0]); set1(&X1f,civ->word[0],civ->end[0]);
+        set1(&X0g,civ->word[0],civ->end[0]); set1(&X1g,civ->word[0],civ->end[0]);
+        count[3] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
+        set0(&X0f,civ->word[0],civ->end[0]); set0(&X1f,civ->word[0],civ->end[0]);
+        set0(&X0g,civ->word[0],civ->end[0]); set0(&X1g,civ->word[0],civ->end[0]);
       }  
-      count[2] += measurement(flag,&X0,&X1,NULL,NULL,i,j,r);
+      count[2] += measurement(flag,&X0f,&X1f,&X0g,&X1g,i,j,r);
     }
     bias[keys] = updatebias(count,absol);
   }
@@ -486,57 +499,7 @@ void getPNBs(char *flag, PNB *pnb) {
   }
 }
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-
 // Get bias Ef, Eg or E
 float getbias(char *flag) {
-  if ( same(flag,"Ef") ) { return neutrality(flag,-1,-1); }
-  ECRYPT_ctx X0f, X1f, X0g, X1g, aux;
-  unsigned long int count[4];
-  PNB fpsb;
-  float bias[Nk];
-  getFPSBs(&fpsb);
-  for ( unsigned int keys = 0 ; keys < Nk ; ++keys ) {
-    keysetup(new,&X0f,&X1f);
-    keysetup(old,&X0g,&X1g);
-    fixPNKBs(-1,&X0g,&X1g);
-    for (int n = 0; n < 4; n++ ) count[n] = 0;
-    for ( unsigned long int ivs = 0 ; ivs < Niv ; ++ivs ){
-      ivsetup(new,&X0f,&X1f);
-      ivsetup(old,&X0g,&X1g);
-      fixFPSBs(&X0f,&X1f,&aux,&fpsb,ivs);
-      fixFPSBs(&X0g,&X1g,&aux,&fpsb,ivs);
-      fixCIV(&X0f,&X1f,&aux,ivs);
-      fixCIV(&X0g,&X1g,&aux,ivs);
-      setID(&X0f,&X1f);
-      setID(&X0g,&X1g);
-      if ( civ != NULL ) {
-        if (civ->len == 2 ){
-          set0(&X0f,civ->word[1],civ->end[1]); set0(&X1f,civ->word[1],civ->end[1]); 
-          set0(&X0g,civ->word[1],civ->end[1]); set0(&X1g,civ->word[1],civ->end[1]); 
-          set0(&X0f,civ->word[0],civ->end[0]); set0(&X1f,civ->word[0],civ->end[0]); 
-          set0(&X0g,civ->word[0],civ->end[0]); set0(&X1g,civ->word[0],civ->end[0]); 
-          count[0] += measurement(flag,&X0f,&X1f,&X0g,&X1g,-1,-1,-1);
-          set1(&X0f,civ->word[0],civ->end[0]); set1(&X1f,civ->word[0],civ->end[0]); 
-          set1(&X0g,civ->word[0],civ->end[0]); set1(&X1g,civ->word[0],civ->end[0]);
-          count[1] += measurement(flag,&X0f,&X1f,&X0g,&X1g,-1,-1,-1);
-          set1(&X0f,civ->word[1],civ->end[1]); set1(&X1f,civ->word[1],civ->end[1]);
-          set1(&X0g,civ->word[1],civ->end[1]); set1(&X1g,civ->word[1],civ->end[1]);
-        }
-        set1(&X0f,civ->word[0],civ->end[0]); set1(&X1f,civ->word[0],civ->end[0]); 
-        set1(&X0g,civ->word[0],civ->end[0]); set1(&X1g,civ->word[0],civ->end[0]);
-        count[3] += measurement(flag,&X0f,&X1f,&X0g,&X1g,-1,-1,-1);
-        set0(&X0f,civ->word[0],civ->end[0]); set0(&X1f,civ->word[0],civ->end[0]); 
-        set0(&X0g,civ->word[0],civ->end[0]); set0(&X1g,civ->word[0],civ->end[0]);
-      }  
-      count[2] += measurement(flag,&X0f,&X1f,&X0g,&X1g,-1,-1,-1);
-    }
-    bias[keys] = updatebias(count,1);
-  }  
-  return median(bias,Nk);
+  return neutrality(flag,-1,-1); 
 }

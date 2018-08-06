@@ -59,7 +59,8 @@
 
 typedef struct
 {
-  u32 state[16]; // Modified for toolkit use
+  int null;
+  u32 state[16];
 } ECRYPT_ctx;
 
 
