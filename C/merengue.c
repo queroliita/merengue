@@ -142,16 +142,22 @@ static void bitstring(u8 *array, int bytes) {
   for (int i = 0; i < bytes; ++i) array[i] = rand() % 256;
 }
 
-static void keysetup(int flag, ECRYPT_ctx *X0, ECRYPT_ctx *X1){
+static void keysetup(int flag, ECRYPT_ctx X[2]){
   if (flag == new) bitstring(k,32);
-  if (!X0->null) ECRYPT_keysetup(X0,k,256,64);
-  if (!X1->null) ECRYPT_keysetup(X1,k,256,64);
+  for (int x = 0; x < 2; x++) if (!X[x].null) ECRYPT_keysetup(&X[x],k,256,64);
 }
 
-static void ivsetup(int flag, ECRYPT_ctx *X0, ECRYPT_ctx *X1){
+static void ivsetup(int flag, ECRYPT_ctx X[2]){
   if (flag == new) bitstring(v,16);
-  if (!X0->null) ECRYPT_ivsetup(X0,v);
-  if (!X1->null) ECRYPT_ivsetup(X1,v);
+  for (int x = 0; x < 2; x++) if (!X[x].null) ECRYPT_ivsetup(&X[x],v);
+}
+
+static void denullify(ECRYPT_ctx X[2]) {
+  X[0].null = 0; X[1].null = 0;
+}
+
+static void nullify(ECRYPT_ctx X[2]) {
+  X[0].null = 1; X[1].null = 1;
 }
 
 // Answers whether the word position is a key
@@ -193,15 +199,15 @@ static void flip(ECRYPT_ctx *X, int word, int bit) {
 }
 
 // Set input difference at initial states 
-static void setID(ECRYPT_ctx *X0, ECRYPT_ctx *X1) {
-  set0(X0,ID[0],ID[1]); 
-  set1(X1,ID[0],ID[1]);
+static void setID(ECRYPT_ctx X[2]) {
+  set0(&X[0],ID[0],ID[1]); 
+  set1(&X[1],ID[0],ID[1]);
 }
 
 // Set random bits
-static void setrandom (ECRYPT_ctx *X0, ECRYPT_ctx *X1, int word, int bit) {
-  if ( rand() % 2 ) { set1(X0,word,bit); set1(X1,word,bit); }
-  else              { set0(X0,word,bit); set0(X1,word,bit); }
+static void setrandom (ECRYPT_ctx X[2], int word, int bit) {
+  if ( rand() % 2 ) { set1(&X[0],word,bit); set1(&X[1],word,bit); }
+  else              { set0(&X[0],word,bit); set0(&X[1],word,bit); }
 }
 
 // Count number of bit differences between two words
@@ -221,52 +227,53 @@ static int numdif(ECRYPT_ctx *Z0, ECRYPT_ctx *Z1){
 }
 
 // Copy bit to other states 
-static void copybit(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, int word, int bit){
-  if ( getbit(aux,word,bit) ) { set1(X0,word,bit); set1(X1,word,bit); }
-  else                        { set0(X0,word,bit); set0(X1,word,bit); }
+static void copybit(ECRYPT_ctx X[2], ECRYPT_ctx *aux, int word, int bit){
+  if ( getbit(aux,word,bit) ) { set1(&X[0],word,bit); set1(&X[1],word,bit); }
+  else                        { set0(&X[0],word,bit); set0(&X[1],word,bit); }
 }
 
 // Copy fragment of bitstring to other states
-static void copyrange(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, int word, int ini, int end){
+static void copyrange(ECRYPT_ctx X[2], ECRYPT_ctx *aux, int word, int ini, int end){
   for (int j = 0; j < 32; ++j)
     if (j >= ini || j <= end) {
-      copybit(X0,X1,aux,word,j);
+      copybit(X,aux,word,j);
     }
 }
 
 // Fix conditioned bits of IV 
-static void fixCIV(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, int ivs){
+static void fixCIV(ECRYPT_ctx X[2], ECRYPT_ctx *aux, int ivs){
   if ( civ != NULL ) { // Fix conditioned bits
     if (ivs == 0) ECRYPT_ivsetup(aux,v);
     else { // Need to fix whole first word if many conditions
-      if ( civ->len > 1 ) copyrange(X0,X1,aux,civ->word[0],0,31);
+      if ( civ->len > 1 ) copyrange(X,aux,civ->word[0],0,31);
       for (int c = 0; c < civ->len; ++c){
-        copyrange(X0,X1,aux,civ->word[c],civ->ini[c],civ->end[c]);
+        copyrange(X,aux,civ->word[c],civ->ini[c],civ->end[c]);
       } 
     }
   }
 }
 
-static void fixFPSBs(ECRYPT_ctx *X0, ECRYPT_ctx *X1, ECRYPT_ctx *aux, PNB *fpsb, int ivs){
+static void fixFPSBs(ECRYPT_ctx X[2], ECRYPT_ctx *aux, PNB *fpsb, int ivs){
   if (fpnb!=NULL) {
     if (ivs == 0) ECRYPT_ivsetup(aux,v);
     else { // Fix FPNBs of the IV
       for ( int i = 0 ; i < fpnb->n; ++i ) {
-        if (isiv(fpsb->word[i])) copybit(X0,X1,aux,fpsb->word[i],fpsb->bit[i]);
+        if (isiv(fpsb->word[i])) copybit(X,aux,fpsb->word[i],fpsb->bit[i]);
       }
     }
   }
 }
 
-// Fix PNKB to zero to build function g 
-static void fixPNKBs(int type, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g) {
-  for ( int i = 0 ; i < bpnb->len ; ++i ) {
-    if ( iskey(bpnb->word[i]) ) {
-      if      ( type == 1 ) { set1(X0g,bpnb->word[i],bpnb->bit[i]); set1(X1g,bpnb->word[i],bpnb->bit[i]); }
-      else if ( type == 0 ) { set0(X0g,bpnb->word[i],bpnb->bit[i]); set1(X1g,bpnb->word[i],bpnb->bit[i]); }
-      else setrandom(X0g,X1g,bpnb->word[i],bpnb->bit[i]);
+// Fix BPNKB to build function g 
+static void fixBPNBs(int type, ECRYPT_ctx Xg[2]) {
+  if (bpnb!=NULL)
+    for ( int i = 0 ; i < bpnb->len ; ++i ) {
+      if ( iskey(bpnb->word[i]) ) {
+        if      ( type == 1 ) { set1(&Xg[0],bpnb->word[i],bpnb->bit[i]); set1(&Xg[1],bpnb->word[i],bpnb->bit[i]); }
+        else if ( type == 0 ) { set0(&Xg[0],bpnb->word[i],bpnb->bit[i]); set0(&Xg[1],bpnb->word[i],bpnb->bit[i]); }
+        else setrandom(Xg,bpnb->word[i],bpnb->bit[i]);
+      }
     }
-  }
 }
 
 // Compare two values 
@@ -278,16 +285,22 @@ static int compare(const void* a, const void* b) {
      else return 1;
 }
 
+static int min(int a, int b) {
+  return a*(a<=b) + b*(b<a);
+}
+
 static int same(char *str, char *txt){
-  return strncmp(str,txt,8) == 0;
+  return strncmp(str,txt,4) == 0;
 }
 
 // Print matrix state in hexadecimal format 
 static void prettyprint(ECRYPT_ctx *X) {
-  for (int i = 0; i < 16; ++i) {
-    if ( i % 4 == 0 ) printf("\n");
-    printf("%02x ",X->state[i]);
-  } printf("\n");
+  if (!X->null) {
+    for (int i = 0; i < 16; ++i) {
+      if ( i % 4 == 0 ) printf("\n");
+      printf("%02x ",X->state[i]);
+    } printf("\n");
+  }
 }
 
 // Compute bias
@@ -331,18 +344,18 @@ static float median(float *array, unsigned int num){
 }
 
 // Compute XOR difference of two output states at one position
-static int delta(ECRYPT_ctx *Z0, ECRYPT_ctx *Z1){
+static int delta(ECRYPT_ctx Z[2]){
   int xor = 0;
   for (int o = 0; o < nODs ; o++) 
-    xor = xor ^ ((Z0->state[OD[o][0]] >> OD[o][1]) & 1) ^ ((Z1->state[OD[o][0]] >> OD[o][1]) & 1);
+    xor = xor ^ ((Z[0].state[OD[o][0]] >> OD[o][1]) & 1) ^ ((Z[1].state[OD[o][0]] >> OD[o][1]) & 1);
   return xor;
 }
 
-static int salsadelta(int rounds, ECRYPT_ctx *X0, ECRYPT_ctx *X1){
-  ECRYPT_ctx Z0,Z1;
-  salsa(rounds,Z0.state,X0->state,0);
-  salsa(rounds,Z1.state,X1->state,0);
-  return delta(&Z0,&Z1);
+static int funf(int rounds, ECRYPT_ctx Xf[2]){
+  ECRYPT_ctx Z[2];
+  salsa(rounds,Z[0].state,Xf[0].state,0);
+  salsa(rounds,Z[1].state,Xf[1].state,0);
+  return delta(Z);
 }
 
 void getFPSBs(PNB *fpsb) {
@@ -361,51 +374,55 @@ void getFPSBs(PNB *fpsb) {
 }
 
 // Auxiliar thread function for neutrality
-static int backflip(ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j) {
+static int backflip(ECRYPT_ctx X[2], int i, int j) {
   int D, G;
-  ECRYPT_ctx Y0, Y1, Z0, Z1;
-  D = salsadelta(r,X0,X1);
-  salsa(R,Z0.state,X0->state,1);
-  salsa(R,Z1.state,X1->state,1);
-  flip(X0,i,j); 
-  flip(X1,i,j);
+  ECRYPT_ctx Y[2], Z[2];
+  D = funf(r,X);
+  salsa(R,Z[0].state,X[0].state,1);
+  salsa(R,Z[1].state,X[1].state,1);
+  flip(&X[0],i,j); 
+  flip(&X[1],i,j);
   for ( int w = 0; w < 16; ++w ) {
-    Z0.state[w] = MINUS(Z0.state[w],X0->state[w]);
-    Z1.state[w] = MINUS(Z1.state[w],X1->state[w]);
+    Z[0].state[w] = MINUS(Z[0].state[w],X[0].state[w]);
+    Z[1].state[w] = MINUS(Z[1].state[w],X[1].state[w]);
   }
-  aslas(Y0.state,Z0.state);
-  aslas(Y1.state,Z1.state);
-  G = delta(&Y0,&Y1);
+  aslas(Y[0].state,Z[0].state);
+  aslas(Y[1].state,Z[1].state);
+  G = delta(Y);
   return 1 - (D ^ G);
 }
 
 // Auxiliar function for forwards()
-static int forflip(ECRYPT_ctx *X0, ECRYPT_ctx *X1, int i, int j){
+static int forflip(ECRYPT_ctx X[2], int i, int j){
   int f0, f1;
-  set0(X0,i,j); set0(X1,i,j);
-  f0 = salsadelta(r,X0,X1);
-  set1(X0,i,j); set1(X1,i,j);
-  f1 = salsadelta(r,X0,X1);
+  set0(&X[0],i,j); set0(&X[1],i,j);
+  f0 = funf(r,X);
+  set1(&X[0],i,j); set1(&X[1],i,j);
+  f1 = funf(r,X);
   return 1 - (f0 ^ f1);
 }
 
+/*static int fung(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g){
+
+}*/
+
 // Compute backwards equality f = g 
-static int backwards(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g) {
-  ECRYPT_ctx Y0, Y1, Z0, Z1;
-  salsa(R,Z0.state,X0f->state,1);
-  salsa(R,Z1.state,X1f->state,1);
+static int backwards(ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2]) {
+  ECRYPT_ctx Y[2], Z[2];
+  salsa(R,Z[0].state,Xf[0].state,1);
+  salsa(R,Z[1].state,Xf[1].state,1);
   for ( int w = 0; w < 16; ++w ) {
-    Z0.state[w] = MINUS(Z0.state[w],X0g->state[w]);
-    Z1.state[w] = MINUS(Z1.state[w],X1g->state[w]);
+    Z[0].state[w] = MINUS(Z[0].state[w],Xg[0].state[w]);
+    Z[1].state[w] = MINUS(Z[1].state[w],Xg[1].state[w]);
   }
-  aslas(Y0.state,Z0.state);
-  aslas(Y1.state,Z1.state);
-  return delta(&Y0,&Y1);      
+  aslas(Y[0].state,Z[0].state);
+  aslas(Y[1].state,Z[1].state);
+  return delta(Y);      
 }
 
-static int fequalg(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g){
-  int f = salsadelta(r,X0f,X1f);
-  int g = backwards(X0f,X1f,X0g,X1g);
+static int fequalg(ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2]){
+  int f = funf(r,Xf);
+  int g = backwards(Xf,Xg);
   return 1 - ( f ^ g );
 }
 
@@ -424,13 +441,12 @@ static float updatebias(unsigned long int count[4], int abso){
   }
 }
 
-static int measurement(char *flag, ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g,
-  int i, int j, int rounds) {
-  if      ( same(flag,"Ef") )   return salsadelta(rounds,X0f,X1f);
-  else if ( same(flag,"Eg") )   return fequalg(X0f,X1f,X0g,X1g);
-  else if ( same(flag,"E") )    return backwards(X0f,X1f,X0g,X1g);
-  else if ( same(flag,"back") ) return backflip(X0f,X1f,i,j);
-  else if ( same(flag,"for") )  return forflip(X0f,X1f,i,j);
+static int measurement(char *flag, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int i, int j, int rounds) {
+  if      ( same(flag,"Ef") )   return funf(rounds,Xf);
+  else if ( same(flag,"Eg") )   return fequalg(Xf,Xg);
+  else if ( same(flag,"E") )    return backwards(Xf,Xg);
+  else if ( same(flag,"BPNB") ) return backflip(Xf,i,j);
+  else if ( same(flag,"FPNB") ) return forflip(Xf,i,j);
   return 0;
 }
 
@@ -448,39 +464,47 @@ static float neutrality(char *flag, int i, int j) {
   unsigned long int count[4];
   int absol = flag[0]=='E';
   float bias[Nk];
-  Xf[0].null = 0; Xf[1].null = 0;
-  if ( !same(flag,"Eg") && !same(flag,"E") ) { Xg[0].null = 1; Xg[1].null = 1; }
+  denullify(Xf);
+  if ( !same(flag,"Eg") && !same(flag,"E") ) { nullify(Xg); }
+  else { denullify(Xg); }
+  prettyprint(&Xf[0]);
+  prettyprint(&Xg[0]);
   getFPSBs(&fpsb);
   for (unsigned int key = 0; key < Nk; ++key) {
-    keysetup(new,&Xf[0],&Xf[1]);
-    keysetup(new,&Xg[0],&Xg[1]);
+    keysetup(new,Xf);
+    keysetup(old,Xg);
+    prettyprint(&Xf[0]);
+    prettyprint(&Xg[0]);
+    fixBPNBs(0,Xg);
     for (int n = 0; n < 4; n++ ) { count[n] = 0; }
     for (unsigned long int ivs = 0; ivs < Niv; ++ivs) {
-      ivsetup(new,&Xf[0],&Xf[1]);
-      ivsetup(old,&Xg[0],&Xg[1]);
-      fixFPSBs(&Xf[0],&Xf[1],&aux,&fpsb,ivs);
-      fixFPSBs(&Xg[0],&Xg[1],&aux,&fpsb,ivs);
-      fixCIV(&Xf[0],&Xf[1],&aux,ivs);
-      fixCIV(&Xg[0],&Xg[1],&aux,ivs);
-      setID(&Xf[0],&Xf[1]);
-      setID(&Xg[0],&Xg[1]);
+      ivsetup(new,Xf);
+      ivsetup(old,Xg);
+      prettyprint(&Xf[0]);
+      prettyprint(&Xg[0]);
+      fixFPSBs(Xf,&aux,&fpsb,ivs);
+      fixFPSBs(Xg,&aux,&fpsb,ivs);
+      fixCIV(Xf,&aux,ivs);
+      fixCIV(Xg,&aux,ivs);
+      setID(Xf);
+      setID(Xg);
       if ( civ != NULL ) {
         if ( civ->len == 2){
           set(0,0,Xf,Xg,civ->word[1],civ->end[1]); // Second condition
           set(0,0,Xf,Xg,civ->word[0],civ->end[0]); // First condition
-          count[0] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
+          count[0] += measurement(flag,Xf,Xg,i,j,r);
           set(1,1,Xf,Xg,civ->word[0],civ->end[0]);
-          count[1] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
+          count[1] += measurement(flag,Xf,Xg,i,j,r);
           set(1,1,Xf,Xg,civ->word[1],civ->end[1]);
         }
         set(1,1,Xf,Xg,civ->word[0],civ->end[0]);
-        count[3] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
+        count[3] += measurement(flag,Xf,Xg,i,j,r);
         set(0,0,Xf,Xg,civ->word[0],civ->end[0]);
       }  
-      count[2] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
+      count[2] += measurement(flag,Xf,Xg,i,j,r);
     }
     bias[key] = updatebias(count,absol);
-    printf("%u key with bias %f\n",key,bias[key]);
+    //printf("%u key with bias %f\n",key,bias[key]);
   }
   printf("avg(bias)=%f\n",avg(bias));
   return median(bias,Nk);
@@ -490,8 +514,8 @@ static float neutrality(char *flag, int i, int j) {
 static void updatePNB(char *flag, PNB *pnb, float bias, int i, int j){
   if (bias > th) {
     printf("is PNB\n");
-    if (iskey(i) && same(flag,"back") ) pnb->n += 1;
-    if (isiv(i) && same(flag,"for") ) pnb->n += 1;
+    if (iskey(i) && same(flag,"BPNB") ) pnb->n += 1;
+    if (isiv(i)  && same(flag,"FPNB") ) pnb->n += 1;
     pnb->bias[pnb->len] = bias;
     pnb->word[pnb->len] = i;
     pnb->bit[pnb->len] = j;
@@ -503,7 +527,7 @@ static void updatePNB(char *flag, PNB *pnb, float bias, int i, int j){
 void getPNBs(char *flag, PNB *pnb) {
   float bias;
   for ( int i = 0 ; i < 16 ; ++i ) {
-    if ( (iskey(i) && same(flag,"back") ) || (isiv(i) && same(flag,"for")) ) {
+    if ( (iskey(i) && same(flag,"BPNB") ) || (isiv(i) && same(flag,"FPNB")) ) {
       for ( int j = 0 ; j < 32 ; ++j ) {
         bias = neutrality(flag,i,j);
         printf("(%d,%d) bias %f\n",i,j,bias);
