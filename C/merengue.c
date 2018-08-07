@@ -24,13 +24,12 @@ typedef struct
 
 #define MINUS(v,w) (U32V((v) - (w)))
 
-
 u8 k[32]; u8 v[16];
 const int new = 1, old = 0;
 
 CIV *civ;
 PNB *fpnb, *bpnb;
-int ID[2], OD[2], R, r;
+int ID[2], OD[256][2], R, r, nODs, nIDs;
 float th;
 unsigned int Nk;
 unsigned long int Niv;
@@ -128,10 +127,10 @@ static void salsa(int rounds, u32 output[16], const u32 input[16], int feedforwa
 // Inverse Salsa function 
 static void aslas(u32 output[16], const u32 input[16]) {
   u32 x[16];
-  int i;
+  int i, Rounds = R;
   for (i = 0; i < 16; ++i) x[i] = input[i];
-  if ( R % 2 == 1 ) { locround(x); R = R - 1; }
-  for (i = R; i > r; i -= 2) {
+  if ( R % 2 == 1 ) { locround(x); Rounds = R - 1; }
+  for (i = Rounds; i > r; i -= 2) {
     worround(x);
     if ( i != r+1 ) locround(x);
   }
@@ -196,7 +195,7 @@ static void flip(ECRYPT_ctx *X, int word, int bit) {
 // Set input difference at initial states 
 static void setID(ECRYPT_ctx *X0, ECRYPT_ctx *X1) {
   set0(X0,ID[0],ID[1]); 
-  set1(X1,ID[0],ID[1]); 
+  set1(X1,ID[0],ID[1]);
 }
 
 // Set random bits
@@ -311,6 +310,19 @@ static float bestbias(unsigned long int ones0, unsigned long int ones1, int abso
   else return (bias0>=bias1)*(2.0*ones0/Niv-1)+(bias1>bias0)*(2.0*ones1/Niv-1);
 }
 
+static float maximum(float *array, int len) {
+  float max = array[0];
+  for (int i = 0; i < len; i++)
+    max = array[i]*(array[i]>max);
+  return max;
+}
+
+// Average value in array
+static float avg(float array[Nk]) {
+  float sum = 0.0;
+  for (unsigned int i = 0; i < Nk; i++) { sum += array[i]; }
+  return sum / Nk ; 
+}
 // Median value in array
 static float median(float *array, unsigned int num){
   qsort(array, num, sizeof(float), compare );
@@ -320,7 +332,10 @@ static float median(float *array, unsigned int num){
 
 // Compute XOR difference of two output states at one position
 static int delta(ECRYPT_ctx *Z0, ECRYPT_ctx *Z1){
-  return ((Z0->state[OD[0]] >> OD[1]) & 1) ^ ((Z1->state[OD[0]] >> OD[1]) & 1);
+  int xor = 0;
+  for (int o = 0; o < nODs ; o++) 
+    xor = xor ^ ((Z0->state[OD[o][0]] >> OD[o][1]) & 1) ^ ((Z1->state[OD[o][0]] >> OD[o][1]) & 1);
+  return xor;
 }
 
 static int salsadelta(int rounds, ECRYPT_ctx *X0, ECRYPT_ctx *X1){
@@ -431,16 +446,16 @@ static float neutrality(char *flag, int i, int j) {
   ECRYPT_ctx Xf[2], Xg[2], aux;
   PNB fpsb;
   unsigned long int count[4];
-  float bias[Nk];
   int absol = flag[0]=='E';
+  float bias[Nk];
   Xf[0].null = 0; Xf[1].null = 0;
   if ( !same(flag,"Eg") && !same(flag,"E") ) { Xg[0].null = 1; Xg[1].null = 1; }
   getFPSBs(&fpsb);
-  for (unsigned int keys = 0; keys < Nk; ++keys){
+  for (unsigned int key = 0; key < Nk; ++key) {
     keysetup(new,&Xf[0],&Xf[1]);
     keysetup(new,&Xg[0],&Xg[1]);
-    for (int n = 0; n < 4; n++ ) count[n] = 0;
-    for (unsigned long int ivs = 0; ivs < Niv; ++ivs){
+    for (int n = 0; n < 4; n++ ) { count[n] = 0; }
+    for (unsigned long int ivs = 0; ivs < Niv; ++ivs) {
       ivsetup(new,&Xf[0],&Xf[1]);
       ivsetup(old,&Xg[0],&Xg[1]);
       fixFPSBs(&Xf[0],&Xf[1],&aux,&fpsb,ivs);
@@ -464,8 +479,10 @@ static float neutrality(char *flag, int i, int j) {
       }  
       count[2] += measurement(flag,&Xf[0],&Xf[1],&Xg[0],&Xg[1],i,j,r);
     }
-    bias[keys] = updatebias(count,absol);
+    bias[key] = updatebias(count,absol);
+    printf("%u key with bias %f\n",key,bias[key]);
   }
+  printf("avg(bias)=%f\n",avg(bias));
   return median(bias,Nk);
 }
 

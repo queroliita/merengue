@@ -35,6 +35,9 @@ int main(int argc, char *argv[])
   struct timeval seed;
   gettimeofday(&seed, NULL);
   srand(seed.tv_usec * seed.tv_sec);
+  
+  // Disable stdout buffering
+  setbuf(stdout, NULL);
 
   printf("Compute: "); scanf("%s", stget);
 
@@ -49,21 +52,23 @@ int main(int argc, char *argv[])
 
   printf("Nk = 2^");  scanf("%d", &eNk ); Nk  = pow(2,eNk );
   printf("Niv = 2^"); scanf("%d", &eNiv); Niv = pow(2,eNiv);
+  
   printf("ID = "); scanf("%d %d", &ID[0], &ID[1]);
-  printf("OD = "); scanf("%d %d", &OD[0], &OD[1]);
+  if ( ID[0]<0 || ID[0]>15 || ID[1]<0 || ID[1]>31 ) { exit(1); }
 
-  if ( ID[0]<0  || ID[1]<0   || OD[0]<0  || OD[0]<0
-    || ID[0]>15 || ID[1]>31  || OD[0]>15 || OD[0]>31 ) { exit(1); }
+  printf("#ODs: "); scanf("%d",&nODs); if ( nODs < 1 || nODs > 256 ) { exit(1);}
+  for (int o = 0; o < nODs; o++) {
+    printf("OD[%d] = ",o); scanf("%d %d", &OD[o][0], &OD[o][1]);
+    if ( OD[o][0]<0 || OD[o][0]>15 || OD[o][1]<0 || OD[o][1]>31 ) { exit(1); }
+  }
   
   printf("r = "); scanf("%d", &r);
-
   if ( !same(stget,"FPNB") && !same(stget,"Ef") ) {
     printf("R = "); scanf("%d", &R);
     if ( R < r ) { exit(1); }
   } else { R = r; }
 
   printf("CIV = "); scanf("%s",stciv);  
-
   if      ( same(stciv,"7") ) { civ = &civx7; }
   else if ( same(stciv,"8") ) { civ = &civx8; }
   else if ( same(stciv,"6") ) { civ = &civx7x6; }
@@ -83,12 +88,13 @@ int main(int argc, char *argv[])
 
   if (same(stget,"Eg") || same(stget,"E") ) {
     if ( R == 8 && r == 4 ) {
-      if      ( civ==NULL && OD[0]==1 && OD[1]==14 ) { bpnb = &bpnb_1_14; }
-      else if ( civ==NULL && OD[0]==6 && OD[1]==14 ) { bpnb = &bpnb_6_14; }
+      if      ( civ==NULL && OD[0][0]==1 && OD[0][1]==14 ) { bpnb = &bpnb_1_14; }
+      else if ( civ==NULL && OD[0][0]==6 && OD[0][1]==14 ) { bpnb = &bpnb_6_14; }
       else if ( civ==&civx7 ) { bpnb = &bpnbx7; }
       else if ( civ==&civx8 ) { bpnb = &bpnbx8; }
       else if ( civ==&civx7x6 ) { bpnb = &bpnbx7x6; }
-    } else if ( R==9 && r==5 && OD[0]==9 && OD[1]==21 ) { bpnb = &bpnb_9_21; }
+    } else if ( R==9 && r==5 && OD[0][0]==9 && OD[0][1]==21 ) { bpnb = &bpnb_9_21; 
+    } else if ( R==8 && r==5 && nODs==3 ) { bpnb = &bpnb_1_13; }
   }
 
   clock_t t;
