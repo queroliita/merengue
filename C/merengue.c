@@ -142,13 +142,13 @@ static void bitstring(u8 *array, int bytes) {
   for (int i = 0; i < bytes; ++i) array[i] = rand() % 256;
 }
 
-static void keysetup(int flag, ECRYPT_ctx X[2]){
-  if (flag == new) bitstring(k,32);
+static void keysetup(int oldnew, ECRYPT_ctx X[2]){
+  if (oldnew == new) bitstring(k,32);
   for (int x = 0; x < 2; x++) if (!X[x].null) ECRYPT_keysetup(&X[x],k,256,64);
 }
 
-static void ivsetup(int flag, ECRYPT_ctx X[2]){
-  if (flag == new) bitstring(v,16);
+static void ivsetup(int oldnew, ECRYPT_ctx X[2]){
+  if (oldnew == new) bitstring(v,16);
   for (int x = 0; x < 2; x++) if (!X[x].null) ECRYPT_ivsetup(&X[x],v);
 }
 
@@ -290,7 +290,7 @@ static int min(int a, int b) {
 }
 
 static int same(char *str, char *txt){
-  return strncmp(str,txt,4) == 0;
+  return strncmp(str,txt,8) == 0;
 }
 
 // Print matrix state in hexadecimal format 
@@ -323,24 +323,31 @@ static float bestbias(unsigned long int ones0, unsigned long int ones1, int abso
   else return (bias0>=bias1)*(2.0*ones0/Niv-1)+(bias1>bias0)*(2.0*ones1/Niv-1);
 }
 
-static float maximum(float *array, int len) {
-  float max = array[0];
-  for (int i = 0; i < len; i++)
-    max = array[i]*(array[i]>max);
-  return max;
-}
-
 // Average value in array
 static float avg(float array[Nk]) {
   float sum = 0.0;
   for (unsigned int i = 0; i < Nk; i++) { sum += array[i]; }
   return sum / Nk ; 
 }
+
 // Median value in array
 static float median(float *array, unsigned int num){
   qsort(array, num, sizeof(float), compare );
   if ( num % 2 ) return array[(num-1)/2];       // Odd
   else return (array[num/2-1]+array[num/2])/2;  // Even
+}
+
+static float updatebias(unsigned long int count[4], int abso){
+  if      ( civ == NULL )   return biasformula(count[2],abso);
+  else if ( civ->len == 1 ) return bestbias(count[2],count[3],abso);
+  else if ( abso ) 
+    return highest(bestbias(count[0],count[1],abso),bestbias(count[2],count[3],abso)); 
+  else {
+    float bias0 = bestbias(count[0],count[1],0);
+    float bias1 = bestbias(count[2],count[3],0);
+    if ( fabs(bias0) > fabs(bias1) ) return bias0;
+    else return bias1; 
+  }
 }
 
 // Compute XOR difference of two output states at one position
@@ -356,21 +363,6 @@ static int funf(int rounds, ECRYPT_ctx Xf[2]){
   salsa(rounds,Z[0].state,Xf[0].state,0);
   salsa(rounds,Z[1].state,Xf[1].state,0);
   return delta(Z);
-}
-
-void getFPSBs(PNB *fpsb) {
-  if (fpnb!=NULL){
-    fpsb->n = 0;
-    for (int i = 6; i < 10; ++i) {
-      for (int j = 0; j < 32; ++j) {
-        if (!isFPNB(i,j)) {
-          fpsb->word[fpsb->n] = i;
-          fpsb->bit[fpsb->n] = j;
-          fpsb->n += 1;
-        }
-      }
-    }
-  }
 }
 
 // Auxiliar thread function for neutrality
@@ -402,12 +394,8 @@ static int forflip(ECRYPT_ctx X[2], int i, int j){
   return 1 - (f0 ^ f1);
 }
 
-/*static int fung(ECRYPT_ctx *X0f, ECRYPT_ctx *X1f, ECRYPT_ctx *X0g, ECRYPT_ctx *X1g){
-
-}*/
-
 // Compute backwards equality f = g 
-static int backwards(ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2]) {
+static int fung(ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2]) {
   ECRYPT_ctx Y[2], Z[2];
   salsa(R,Z[0].state,Xf[0].state,1);
   salsa(R,Z[1].state,Xf[1].state,1);
@@ -421,30 +409,29 @@ static int backwards(ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2]) {
 }
 
 static int fequalg(ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2]){
-  int f = funf(r,Xf);
-  int g = backwards(Xf,Xg);
-  return 1 - ( f ^ g );
+  return 1 - ( funf(r,Xf) ^ fung(Xf,Xg) );
+}
+
+void getFPSBs(PNB *fpsb) {
+  if (fpnb!=NULL) {
+    fpsb->n = 0;
+    for (int i = 6; i < 10; ++i)
+      for (int j = 0; j < 32; ++j)
+        if (!isFPNB(i,j)) {
+          fpsb->word[fpsb->n] = i;
+          fpsb->bit[fpsb->n] = j;
+          fpsb->n += 1;
+        }
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static float updatebias(unsigned long int count[4], int abso){
-  if      ( civ == NULL )   return biasformula(count[2],abso);
-  else if ( civ->len == 1 ) return bestbias(count[2],count[3],abso);
-  else if ( abso ) 
-    return highest(bestbias(count[0],count[1],abso),bestbias(count[2],count[3],abso)); 
-  else {
-    float bias0 = bestbias(count[0],count[1],0);
-    float bias1 = bestbias(count[2],count[3],0);
-    if ( fabs(bias0) > fabs(bias1) ) return bias0;
-    else return bias1; 
-  }
-}
 
 static int measurement(char *flag, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int i, int j, int rounds) {
   if      ( same(flag,"Ef") )   return funf(rounds,Xf);
   else if ( same(flag,"Eg") )   return fequalg(Xf,Xg);
-  else if ( same(flag,"E") )    return backwards(Xf,Xg);
+  else if ( same(flag,"E") )    return fung(Xf,Xg);
   else if ( same(flag,"BPNB") ) return backflip(Xf,i,j);
   else if ( same(flag,"FPNB") ) return forflip(Xf,i,j);
   return 0;
@@ -467,21 +454,15 @@ static float neutrality(char *flag, int i, int j) {
   denullify(Xf);
   if ( !same(flag,"Eg") && !same(flag,"E") ) { nullify(Xg); }
   else { denullify(Xg); }
-  prettyprint(&Xf[0]);
-  prettyprint(&Xg[0]);
   getFPSBs(&fpsb);
   for (unsigned int key = 0; key < Nk; ++key) {
     keysetup(new,Xf);
     keysetup(old,Xg);
-    prettyprint(&Xf[0]);
-    prettyprint(&Xg[0]);
     fixBPNBs(0,Xg);
     for (int n = 0; n < 4; n++ ) { count[n] = 0; }
     for (unsigned long int ivs = 0; ivs < Niv; ++ivs) {
       ivsetup(new,Xf);
       ivsetup(old,Xg);
-      prettyprint(&Xf[0]);
-      prettyprint(&Xg[0]);
       fixFPSBs(Xf,&aux,&fpsb,ivs);
       fixFPSBs(Xg,&aux,&fpsb,ivs);
       fixCIV(Xf,&aux,ivs);
@@ -509,6 +490,7 @@ static float neutrality(char *flag, int i, int j) {
   printf("avg(bias)=%f\n",avg(bias));
   return median(bias,Nk);
 }
+
 
 // Update list of PNBs depending on flag is forwards or backwards
 static void updatePNB(char *flag, PNB *pnb, float bias, int i, int j){
