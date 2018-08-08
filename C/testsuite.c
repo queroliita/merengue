@@ -23,11 +23,22 @@ static clock_t timeit(clock_t t){
   return t;
 }
 
+static int max(int a, int b) { return a*(a>=b)+b*(b>a); }
+
+static int same(char *str, char *txt){
+  if (strlen(str)!=strlen(txt)) return 0;
+  int ret = 1;
+  int maxlen = max(strlen(str),strlen(txt));
+  for (int c = 0 ; c < maxlen ; c++)
+    ret = ret * str[c]==txt[c];
+  return ret;
+}
+
 int main(int argc, char *argv[])
 { 
-  char stret[100], stciv[1], stfpnb[1], stflg[8];
+  char stflg[8], stret[100], stciv[4], stfpnb[4];
   PNB pnb = { 0, 0, {0}, {0}, {0.0}};
-  int eNk, eNiv;
+  int eNk, eNiv, flg;
 
   bpnb = NULL; fpnb = NULL; civ = NULL; 
   
@@ -41,12 +52,12 @@ int main(int argc, char *argv[])
 
   printf("Compute: "); scanf("%s", stflg);
 
-  if ( !same(stflg,"Ef") 
-    && !same(stflg,"Eg") 
-    && !same(stflg,"E") 
-    && !same(stflg,"FPNB") 
-    && !same(stflg,"BPNB") ) 
-  { printf("Ef | Eg | E | FPNB | BPNB\n"); exit(1); }
+  if      ( same(stflg,"Ef") )   { flg = flgEf; } 
+  else if ( same(stflg,"Eg") )   { flg = flgEg; }
+  else if ( same(stflg,"E") )    { flg = flgE; }
+  else if ( same(stflg,"FPNB") ) { flg = flgF; }
+  else if ( same(stflg,"BPNB") ) { flg = flgB; }
+  else { printf("Ef | Eg | E | FPNB | BPNB\n"); exit(1); }
 
   printf("Nk = 2^");  scanf("%d", &eNk ); Nk  = pow(2,eNk );
   printf("Niv = 2^"); scanf("%d", &eNiv); Niv = pow(2,eNiv);
@@ -61,61 +72,62 @@ int main(int argc, char *argv[])
   }
   
   printf("r = "); scanf("%d", &r);
-  if ( !same(stflg,"FPNB") && !same(stflg,"Ef") ) {
+  if ( flg!=flgF && flg!=flgEf ) {
     printf("R = "); scanf("%d", &R);
     if ( R < r ) { exit(1); }
   } else { R = r; }
 
-  printf("CIV = "); scanf("%s",stciv);  
+  printf("CIV = "); scanf("%s",stciv);
   if      ( same(stciv,"7") ) { civ = &civx7; }
   else if ( same(stciv,"8") ) { civ = &civx8; }
   else if ( same(stciv,"6") ) { civ = &civx7x6; }
+  else if ( !same(stciv,"n") ) { exit(1);}
 
-  if (!same(stflg,"FPNB")) {
+  if (flg!=flgF) {
     printf("FPNB = "); scanf("%s",stfpnb);
-    if (stfpnb[0]!='n'){
-      if      ( civ == NULL ) { fpnb = &fpnb_; }
-      else if ( civ == &civx7 ) { fpnb = &fpnbx7; }
-      else if ( civ == &civx7x6 ) { fpnb = &fpnbx7x6; }
-    }
+    if (same(stfpnb,"y")){
+      if      ( civ == NULL ) { fpnb = &fpnb47; }
+      else if ( civ == &civx7 ) { fpnb = &fpnb52; }
+      else if ( civ == &civx7x6 ) { fpnb = &fpnb54; }
+    } else if ( !same(stfpnb,"n")) { exit(1); }
   }
 
-  if (same(stflg,"FPNB") || same(stflg,"BPNB") ) {
+  if ( flg==flgF || flg==flgB ) {
     printf("th = "); scanf("%f",&th);
   }
 
-  if (same(stflg,"Eg") || same(stflg,"E") ) {
+  if ( flg==flgEg || flg==flgE ) {
     if ( R == 8 && r == 4 ) {
-      if      ( civ==NULL && OD[0][0]==1 && OD[0][1]==14 ) { bpnb = &bpnb_1_14; }
-      else if ( civ==NULL && OD[0][0]==6 && OD[0][1]==14 ) { bpnb = &bpnb_6_14; }
-      else if ( civ==&civx7 ) { bpnb = &bpnbx7; }
-      else if ( civ==&civx8 ) { bpnb = &bpnbx8; }
-      else if ( civ==&civx7x6 ) { bpnb = &bpnbx7x6; }
-    } else if ( R==9 && r==5 && OD[0][0]==9 && OD[0][1]==21 ) { bpnb = &bpnb_9_21; 
+      if      ( civ==NULL && OD[0][0]==1 && OD[0][1]==14 ) { bpnb = &bpnb36; }
+      else if ( civ==NULL && OD[0][0]==6 && OD[0][1]==14 ) { bpnb = &bpnb30; }
+      else if ( civ==&civx7 ) { bpnb = &bpnb33; }
+      else if ( civ==&civx8 ) { bpnb = &bpnb31; }
+      else if ( civ==&civx7x6 ) { bpnb = &bpnb38; }
+    } else if ( R==9 && r==5 && OD[0][0]==9 && OD[0][1]==21 ) { bpnb = &bpnb25;
     } else if ( R==8 && r==5 && nODs==3 ) { bpnb = &bpnb_1_13; }
   }
 
   clock_t t;
   t = clock(); 
 
-  if      (same(stflg,"Ef")) {
-    printf("|Ef*|=%f",getbias(stflg));
+  if      ( flg == flgEf ) {
+    printf("|Ef*|=%f",getbias(flg));
   } 
-  else if (same(stflg,"Eg")) {
-    printf("|Eg*|=%f",getbias(stflg));
+  else if ( flg == flgEg ) {
+    printf("|Eg*|=%f",getbias(flg));
   } 
-  else if (same(stflg,"E")) {
-    printf("|E*|=%f",getbias(stflg));
+  else if ( flg == flgE ) {
+    printf("|E*|=%f",getbias(flg));
   } 
-  else if (same(stflg,"FPNB")) {
-    getPNBs(stflg,&pnb);
+  else if ( flg == flgF ) {
+    getPNBs(flg,&pnb);
     for (int i = 0; i < pnb.len; ++i) {
       printf("FPNB (%d,%d) ",pnb.word[i],pnb.bit[i]);
       printf("with neutrality measure = %f\n",pnb.bias[i]);
     } printf("-> %d FPNBs (%d iv)\n",pnb.len,pnb.n);   
   } 
-  else if (same(stflg,"BPNB")) {
-    getPNBs(stflg,&pnb);
+  else if ( flg == flgB ) {
+    getPNBs(flg,&pnb);
     for (int i = 0; i < pnb.len; ++i) {
       printf("BPNB (%d,%d) ",pnb.word[i],pnb.bit[i]);
       printf("with neutrality measure = %f\n",pnb.bias[i]);

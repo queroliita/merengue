@@ -26,6 +26,7 @@ typedef struct
 
 u8 k[32]; u8 v[16];
 const int new = 1, old = 0;
+const int flgEf = 0, flgEg = 1, flgE = 2, flgF = 3, flgB = 4;
 
 CIV *civ;
 PNB *fpnb, *bpnb;
@@ -211,18 +212,18 @@ static void setrandom (ECRYPT_ctx X[2], int word, int bit) {
 }
 
 // Count number of bit differences between two words
-static int numdifword(ECRYPT_ctx *Z0, ECRYPT_ctx *Z1, int word){
+static int numdifword(ECRYPT_ctx Z[2], int word){
   int notequal = 0;
   for (int j = 0; j < 32; ++j)
-    notequal += ((Z0->state[word] >> j) & 1) ^ ((Z1->state[word] >> j) & 1);
+    notequal += ((Z[0].state[word] >> j) & 1) ^ ((Z[1].state[word] >> j) & 1);
   return notequal;
 }
 
 // Count number of bit differences between two states
-static int numdif(ECRYPT_ctx *Z0, ECRYPT_ctx *Z1){
+static int numdif(ECRYPT_ctx Z[2]){
   int notequal = 0;
   for (int i = 0; i < 16; ++i)
-    notequal += numdifword(Z0,Z1,i);
+    notequal += numdifword(Z,i);
   return notequal;
 }
 
@@ -283,14 +284,6 @@ static int compare(const void* a, const void* b) {
      if ( int_a == int_b ) return 0;
      else if ( int_a < int_b ) return -1;
      else return 1;
-}
-
-static int min(int a, int b) {
-  return a*(a<=b) + b*(b<a);
-}
-
-static int same(char *str, char *txt){
-  return strncmp(str,txt,8) == 0;
 }
 
 // Print matrix state in hexadecimal format 
@@ -428,12 +421,12 @@ void getFPSBs(PNB *fpsb) {
 ///////////////////////////////////////////////////////////////////////////////
 
 
-static int measurement(char *flag, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int i, int j, int rounds) {
-  if      ( same(flag,"Ef") )   return funf(rounds,Xf);
-  else if ( same(flag,"Eg") )   return fequalg(Xf,Xg);
-  else if ( same(flag,"E") )    return fung(Xf,Xg);
-  else if ( same(flag,"BPNB") ) return backflip(Xf,i,j);
-  else if ( same(flag,"FPNB") ) return forflip(Xf,i,j);
+static int measurement(int flg, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int i, int j, int rounds) {
+  if      ( flg == flgEf ) return funf(rounds,Xf);
+  else if ( flg == flgEg ) return fequalg(Xf,Xg);
+  else if ( flg == flgE )  return fung(Xf,Xg);
+  else if ( flg == flgB )  return backflip(Xf,i,j);
+  else if ( flg == flgF )  return forflip(Xf,i,j);
   return 0;
 }
 
@@ -444,15 +437,62 @@ static void set(int f, int g, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int word, int 
   else if ( g == 1 ) { set1(&Xg[0],word,bit); set1(&Xg[1],word,bit); }
 }
 
+static float trampa(){
+  ECRYPT_ctx Xf[2], Xg[2], Zf[2], aux;
+  PNB fpsb;
+  unsigned long int count1, count0;
+  int absol = 1;
+  float bias[Nk];
+  denullify(Xf); denullify(Xg); denullify(Zf);
+  getFPSBs(&fpsb);
+  for (unsigned int key = 0; key < Nk; ++key) {
+    keysetup(new,Xf);
+    keysetup(old,Xg);
+    fixBPNBs(0,Xg);
+    count1 = 0; count0=0;
+    printf(" 2 DIFS : ");
+    for (unsigned long int ivs = 0; ivs < Niv; ++ivs) {
+      ivsetup(new,Xf);
+      ivsetup(old,Xg);
+      fixFPSBs(Xf,&aux,&fpsb,ivs);
+      fixFPSBs(Xg,&aux,&fpsb,ivs);
+      fixCIV(Xf,&aux,ivs);
+      fixCIV(Xg,&aux,ivs);
+      setID(Xf);
+      setID(Xg);
+      if ( civ != NULL ) {
+        set(1,1,Xf,Xg,civ->word[0],civ->end[0]);
+        count1 += fequalg(Xf,Xg);
+        salsa(1,Zf[0].state,Xf[0].state,0);
+        salsa(1,Zf[1].state,Xf[1].state,0);
+        if ( numdifword(Zf,15)==2 && ivs==Niv-1) {printf("1");} 
+        set(0,0,Xf,Xg,civ->word[0],civ->end[0]);
+        count0 += fequalg(Xf,Xg);
+        salsa(1,Zf[0].state,Xf[0].state,0);
+        salsa(1,Zf[1].state,Xf[1].state,0);
+        if ( numdifword(Zf,15)==2 && ivs==Niv-1 ) {printf("0 ");} 
+      }
+    }
+    bias[key] = bestbias(count0,count1,absol);
+    if ( bias[key] == biasformula(count0,1) && bias[key] == biasformula(count1,1)) {
+      printf("igual bias\n");
+    } else if (bias[key] == biasformula(count0,1) ) { printf(" | 0\n");}
+    else if ( bias[key] == biasformula(count1,1) ) { printf(" | 1\n");}
+    //printf("%u key with bias %f\n",key,bias[key]);    printf("%u key with bias %f\n",key,bias[key]);
+  }
+  printf("avg(bias)=%f\n",avg(bias));
+  return median(bias,Nk); 
+}
+
 // Compute neutrality measure of a bit (backwards or forwards)
-static float neutrality(char *flag, int i, int j) {
+static float neutrality(int flg, int i, int j) {
   ECRYPT_ctx Xf[2], Xg[2], aux;
   PNB fpsb;
   unsigned long int count[4];
-  int absol = flag[0]=='E';
+  int absol = (flg==flgEf || flg==flgEg || flg==flgE);
   float bias[Nk];
   denullify(Xf);
-  if ( !same(flag,"Eg") && !same(flag,"E") ) { nullify(Xg); }
+  if ( flg!=flgEg && flg!=flgE ) { nullify(Xg); }
   else { denullify(Xg); }
   getFPSBs(&fpsb);
   for (unsigned int key = 0; key < Nk; ++key) {
@@ -473,31 +513,31 @@ static float neutrality(char *flag, int i, int j) {
         if ( civ->len == 2){
           set(0,0,Xf,Xg,civ->word[1],civ->end[1]); // Second condition
           set(0,0,Xf,Xg,civ->word[0],civ->end[0]); // First condition
-          count[0] += measurement(flag,Xf,Xg,i,j,r);
+          count[0] += measurement(flg,Xf,Xg,i,j,r);
           set(1,1,Xf,Xg,civ->word[0],civ->end[0]);
-          count[1] += measurement(flag,Xf,Xg,i,j,r);
+          count[1] += measurement(flg,Xf,Xg,i,j,r);
           set(1,1,Xf,Xg,civ->word[1],civ->end[1]);
         }
         set(1,1,Xf,Xg,civ->word[0],civ->end[0]);
-        count[3] += measurement(flag,Xf,Xg,i,j,r);
+        count[3] += measurement(flg,Xf,Xg,i,j,r);
         set(0,0,Xf,Xg,civ->word[0],civ->end[0]);
       }  
-      count[2] += measurement(flag,Xf,Xg,i,j,r);
+      count[2] += measurement(flg,Xf,Xg,i,j,r);
     }
     bias[key] = updatebias(count,absol);
-    //printf("%u key with bias %f\n",key,bias[key]);
+    printf("%u key with bias %f\n",key,bias[key]);
   }
   printf("avg(bias)=%f\n",avg(bias));
   return median(bias,Nk);
 }
 
 
-// Update list of PNBs depending on flag is forwards or backwards
-static void updatePNB(char *flag, PNB *pnb, float bias, int i, int j){
+// Update list of PNBs depending on flg is forwards or backwards
+static void updatePNB(int flg, PNB *pnb, float bias, int i, int j){
   if (bias > th) {
     printf("is PNB\n");
-    if (iskey(i) && same(flag,"BPNB") ) pnb->n += 1;
-    if (isiv(i)  && same(flag,"FPNB") ) pnb->n += 1;
+    if (iskey(i) && flg==flgB ) pnb->n += 1;
+    if (isiv(i)  && flg==flgF ) pnb->n += 1;
     pnb->bias[pnb->len] = bias;
     pnb->word[pnb->len] = i;
     pnb->bit[pnb->len] = j;
@@ -506,20 +546,21 @@ static void updatePNB(char *flag, PNB *pnb, float bias, int i, int j){
 }
 
 // Compute forwards or backwards probabilistic neutral bits
-void getPNBs(char *flag, PNB *pnb) {
+void getPNBs(int flg, PNB *pnb) {
   float bias;
   for ( int i = 0 ; i < 16 ; ++i ) {
-    if ( (iskey(i) && same(flag,"BPNB") ) || (isiv(i) && same(flag,"FPNB")) ) {
+    if ( (iskey(i) && flg==flgB ) || ( isiv(i) && flg==flgF ) ) {
       for ( int j = 0 ; j < 32 ; ++j ) {
-        bias = neutrality(flag,i,j);
+        bias = neutrality(flg,i,j);
         printf("(%d,%d) bias %f\n",i,j,bias);
-        updatePNB(flag,pnb,bias,i,j);
+        updatePNB(flg,pnb,bias,i,j);
       }
     } 
   }
 }
 
 // Get bias Ef, Eg or E
-float getbias(char *flag) {
-  return neutrality(flag,-1,-1); 
+float getbias(int flg) {
+  if (flg==flgEg) return trampa();
+  return neutrality(flg,-1,-1); 
 }
