@@ -39,6 +39,7 @@ int main(int argc, char *argv[])
   char stflg[8], stret[100], stciv[4], stfpnb[4];
   PNB pnb = { 0, 0, {0}, {0}, {0.0}};
   int eNk, eNiv, flg;
+  float ret;
 
   bpnb = NULL; fpnb = NULL; civ = NULL; 
   
@@ -110,14 +111,16 @@ int main(int argc, char *argv[])
   clock_t t;
   t = clock(); 
 
-  if      ( flg == flgEf ) {
-    printf("|Ef*|=%f",getbias(flg));
+  if ( flg == flgEf || flg == flgEg || flg == flgE ) {ret = getbias(flg);}
+
+  if    ( flg == flgEf ) {
+    printf("|Ef*| = %f = 2^(%.1f)\n",ret,log2(ret));
   } 
   else if ( flg == flgEg ) {
-    printf("|Eg*|=%f",getbias(flg));
+    printf("|Eg*| = %f = 2^(%.1f)\n",ret,log2(ret));
   } 
   else if ( flg == flgE ) {
-    printf("|E*|=%f",getbias(flg));
+    printf("|E*| = %f = 2^(%.1f)\n",ret,log2(ret));
   } 
   else if ( flg == flgF ) {
     getPNBs(flg,&pnb);

@@ -246,10 +246,11 @@ static void fixCIV(ECRYPT_ctx X[2], ECRYPT_ctx *aux, int ivs){
   if ( civ != NULL ) { // Fix conditioned bits
     if (ivs == 0) ECRYPT_ivsetup(aux,v);
     else { // Need to fix whole first word if many conditions
-      if ( civ->len > 1 ) copyrange(X,aux,civ->word[0],0,31);
+      /*copyrange(X,aux,civ->word[0],0,30);
+      if ( civ->len > 1 ) copyrange(X,aux,civ->word[0],0,31);*/
       for (int c = 0; c < civ->len; ++c){
-        copyrange(X,aux,civ->word[c],civ->ini[c],civ->end[c]);
-      } 
+        copyrange(X,aux,civ->word[c],0,31);
+      }
     }
   }
 }
@@ -430,26 +431,35 @@ static void setbits(int b, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int word, int bit
   setbit(b,Xg,word,bit);
 }
 
-static int checknumdif(ECRYPT_ctx X[2], int b0, int b1, int word, int rounds ) {
+static int checknumdif(ECRYPT_ctx X[2], int b0, int b01, int b1, int b11, int word, int rounds ) {
   ECRYPT_ctx Z[2]; denullify(Z);
   setbit(b0,X,civ->word[0],civ->end[0]);
-  if (civ->len==2) setbit(b1,X,civ->word[1],civ->end[1]);
+  setbit(b01,X,civ->word[0],civ->end[0]+1);
+  if (civ->len==2) {
+    setbit(b1,X,civ->word[1],civ->end[1]);
+    setbit(b11,X,civ->word[1],civ->end[1]+1);
+  }
   salsa(rounds,Z[0].state,X[0].state,0);
   salsa(rounds,Z[1].state,X[1].state,0);
+  //if (z) { printf("zetas\n"); prettyprint(&Z[0]); prettyprint(&Z[1]);}
   return numdifword(Z,word);
 }
 
 // Find IV condition that generates less differences 
-static void findcondition(ECRYPT_ctx Xf[2], int con[2]) {
-  con[0] = -1; con[1] = -1;
+static void findcondition(ECRYPT_ctx Xf[2], int con[4]) {
+  con[0] = -1; con[1] = -1; con[2] = -1; con[3] = -1;
   if (civ==NULL) return;
   if (civ->len >= 1 ) {
-    if      ( checknumdif(Xf,0,-1,15,1)==2 ) { con[0] = 0; } 
-    else if ( checknumdif(Xf,1,-1,15,1)==2 ) { con[0] = 1; }
-    else    { printf("Incorrect condition on 1st round\n"); exit(1); }
+    if      ( checknumdif(Xf,0,0,-1,-1,15,1)==2 ) { con[0] = 0; con[1] = 0; } 
+    else if ( checknumdif(Xf,1,0,-1,-1,15,1)==2 ) { con[0] = 1; con[1] = 0; }
+    else if ( checknumdif(Xf,0,1,-1,-1,15,1)==2 ) { con[0] = 0; con[1] = 1; }
+    else if ( checknumdif(Xf,1,1,-1,-1,15,1)==2 ) { con[0] = 1; con[1] = 1; }
+    else    { printf("Incorrect condition on 1st round\n");exit(1); }
   } if (civ->len == 2 ) { // Xf set to con[0] != -1
-    if      ( checknumdif(Xf,con[0],0,12,2)<=3 ) { con[1] = 0; }
-    else if ( checknumdif(Xf,con[0],1,12,2)<=3 ) { con[1] = 1; }
+    if      ( checknumdif(Xf,-1,-1,0,0,12,2)<=3 ) { con[2] = 0; con[3] = 0; }
+    else if ( checknumdif(Xf,-1,-1,1,0,12,2)<=3 ) { con[2] = 1; con[3] = 0; }
+    else if ( checknumdif(Xf,-1,-1,0,1,12,2)<=3 ) { con[2] = 0; con[3] = 1; }
+    else if ( checknumdif(Xf,-1,-1,1,1,12,2)<=3 ) { con[2] = 1; con[3] = 1; }
     else    { printf("Incorrect condition on 2nd round\n"); exit(1);}
   } 
   return;
@@ -470,7 +480,7 @@ static float neutrality(int flg, int i, int j) {
   PNB fpsb;
   unsigned long int count;
   int absol = (flg==flgEf || flg==flgEg || flg==flgE);
-  int con[2];
+  int con[4];
   float bias[Nk];
   denullify(Xf);
   if ( flg!=flgEg && flg!=flgE ) { nullify(Xg); }
@@ -481,6 +491,7 @@ static float neutrality(int flg, int i, int j) {
     keysetup(old,Xg);
     fixBPNBs(0,Xg);
     count = 0;
+    //printf("key %d\n",key);
     for (unsigned long int ivs = 0; ivs < Niv; ++ivs) {
       ivsetup(new,Xf);
       ivsetup(old,Xg);
@@ -493,13 +504,16 @@ static float neutrality(int flg, int i, int j) {
       if (ivs==0) { findcondition(Xf,con); } // Same for all keys
       if ( civ!=NULL ) {
         setbits(con[0],Xf,Xg,civ->word[0],civ->end[0]);
-        if ( civ->len==2 )
-          setbits(con[1],Xf,Xg,civ->word[1],civ->end[1]);
+        setbits(con[1],Xf,Xg,civ->word[0],civ->end[0]+1);
+        if ( civ->len==2 ) {
+          setbits(con[2],Xf,Xg,civ->word[1],civ->end[1]);
+          setbits(con[3],Xf,Xg,civ->word[1],civ->end[1]+1);
+        }
       }
       count += measurement(flg,Xf,Xg,i,j);
     }
     bias[key] = biasformula(count,absol);
-    printf("%u key with bias %f\n",key,bias[key]);
+    //printf("%u key with bias %f\n",key,bias[key]);
   }
   printf("avg(bias)=%f\n",avg(bias));
   return median(bias,Nk);
