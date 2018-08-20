@@ -211,6 +211,16 @@ static void setrandom (ECRYPT_ctx X[2], int word, int bit) {
   else              { set0(&X[0],word,bit); set0(&X[1],word,bit); }
 }
 
+static void setbit(int b, ECRYPT_ctx X[2], int word, int bit) {
+  if      ( b == 0 ) { set0(&X[0],word,bit); set0(&X[1],word,bit); }
+  else if ( b == 1 ) { set1(&X[0],word,bit); set1(&X[1],word,bit); }
+}
+
+static void setbits(int b, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int word, int bit) {
+  setbit(b,Xf,word,bit);
+  setbit(b,Xg,word,bit);
+}
+
 // Count number of bit differences between two words
 static int numdifword(ECRYPT_ctx Z[2], int word){
   int notequal = 0;
@@ -255,12 +265,15 @@ static void fixCIV(ECRYPT_ctx X[2], ECRYPT_ctx *aux, int ivs){
   }
 }
 
-static void fixFPSBs(ECRYPT_ctx X[2], ECRYPT_ctx *aux, PNB *fpsb, int ivs){
+static void fixFPSBs(ECRYPT_ctx X[2], ECRYPT_ctx *aux, int b, PNB *fpsb, int ivs){
   if (fpnb!=NULL) {
     if (ivs == 0) ECRYPT_ivsetup(aux,v);
     else { // Fix FPNBs of the IV
       for ( int i = 0 ; i < fpnb->n; ++i ) {
-        if (isiv(fpsb->word[i])) copybit(X,aux,fpsb->word[i],fpsb->bit[i]);
+        if (isiv(fpsb->word[i])) {
+          if ( b==0 || b==1 ) setbit(b,X,fpsb->word[i],fpsb->bit[i]);
+          else if ( b == -1 ) copybit(X,aux,fpsb->word[i],fpsb->bit[i]);
+        }
       }
     }
   }
@@ -298,18 +311,18 @@ static void prettyprint(ECRYPT_ctx *X) {
 }
 
 // Compute bias
-static float biasformula(unsigned long int ones, int absolute) {
+static double biasformula(unsigned long int ones, int absolute) {
   if (absolute) return fabs(2.0*ones/Niv -1);
   else return (2.0*ones)/Niv-1;
 }
 
 // Returns highest value 
-static float highest(float bias0, float bias1){
+static double highest(float bias0, float bias1){
   return (bias0>=bias1)*bias0+(bias1>bias0)*bias1;
 }
 
 // Return best bias between two threads
-static float bestbias(unsigned long int ones0, unsigned long int ones1, int absolute) {
+static double bestbias(unsigned long int ones0, unsigned long int ones1, int absolute) {
   float bias0,bias1;
   bias0 = biasformula(ones0,1);
   bias1 = biasformula(ones1,1);
@@ -318,20 +331,20 @@ static float bestbias(unsigned long int ones0, unsigned long int ones1, int abso
 }
 
 // Average value in array
-static float avg(float array[Nk]) {
+static double avg(double array[Nk]) {
   float sum = 0.0;
   for (unsigned int i = 0; i < Nk; i++) { sum += array[i]; }
   return sum / Nk ; 
 }
 
 // Median value in array
-static float median(float *array, unsigned int num){
+static double median(double *array, unsigned int num){
   qsort(array, num, sizeof(float), compare );
   if ( num % 2 ) return array[(num-1)/2];       // Odd
   else return (array[num/2-1]+array[num/2])/2;  // Even
 }
 
-static float updatebias(unsigned long int count[4], int abso){
+static double updatebias(unsigned long int count[4], int abso){
   if      ( civ == NULL )   return biasformula(count[2],abso);
   else if ( civ->len == 1 ) return bestbias(count[2],count[3],abso);
   else if ( abso ) 
@@ -421,16 +434,6 @@ void getFPSBs(PNB *fpsb) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static void setbit(int b, ECRYPT_ctx X[2], int word, int bit) {
-  if      ( b == 0 ) { set0(&X[0],word,bit); set0(&X[1],word,bit); }
-  else if ( b == 1 ) { set1(&X[0],word,bit); set1(&X[1],word,bit); }
-}
-
-static void setbits(int b, ECRYPT_ctx Xf[2], ECRYPT_ctx Xg[2], int word, int bit) {
-  setbit(b,Xf,word,bit);
-  setbit(b,Xg,word,bit);
-}
-
 static int checknumdif(ECRYPT_ctx X[2], int b0, int b01, int b1, int b11, int word, int rounds ) {
   ECRYPT_ctx Z[2]; denullify(Z);
   setbit(b0,X,civ->word[0],civ->end[0]);
@@ -449,17 +452,19 @@ static int checknumdif(ECRYPT_ctx X[2], int b0, int b01, int b1, int b11, int wo
 static void findcondition(ECRYPT_ctx Xf[2], int con[4]) {
   con[0] = -1; con[1] = -1; con[2] = -1; con[3] = -1;
   if (civ==NULL) return;
+  int word1=15, word2 = 12;
+  if      (ID[0]==8) { word1 = 0; word2 = 1;}
   if (civ->len >= 1 ) {
-    if      ( checknumdif(Xf,0,0,-1,-1,15,1)==2 ) { con[0] = 0; con[1] = 0; } 
-    else if ( checknumdif(Xf,1,0,-1,-1,15,1)==2 ) { con[0] = 1; con[1] = 0; }
-    else if ( checknumdif(Xf,0,1,-1,-1,15,1)==2 ) { con[0] = 0; con[1] = 1; }
-    else if ( checknumdif(Xf,1,1,-1,-1,15,1)==2 ) { con[0] = 1; con[1] = 1; }
+    if      ( checknumdif(Xf,0,0,-1,-1,word1,1)==2 ) { con[0] = 0; con[1] = 0; } 
+    else if ( checknumdif(Xf,1,0,-1,-1,word1,1)==2 ) { con[0] = 1; con[1] = 0; }
+    else if ( checknumdif(Xf,0,1,-1,-1,word1,1)==2 ) { con[0] = 0; con[1] = 1; }
+    else if ( checknumdif(Xf,1,1,-1,-1,word1,1)==2 ) { con[0] = 1; con[1] = 1; }
     else    { printf("Incorrect condition on 1st round\n");exit(1); }
   } if (civ->len == 2 ) { // Xf set to con[0] != -1
-    if      ( checknumdif(Xf,-1,-1,0,0,12,2)<=3 ) { con[2] = 0; con[3] = 0; }
-    else if ( checknumdif(Xf,-1,-1,1,0,12,2)<=3 ) { con[2] = 1; con[3] = 0; }
-    else if ( checknumdif(Xf,-1,-1,0,1,12,2)<=3 ) { con[2] = 0; con[3] = 1; }
-    else if ( checknumdif(Xf,-1,-1,1,1,12,2)<=3 ) { con[2] = 1; con[3] = 1; }
+    if      ( checknumdif(Xf,-1,-1,0,0,word2,2)<=3 ) { con[2] = 0; con[3] = 0; }
+    else if ( checknumdif(Xf,-1,-1,1,0,word2,2)<=3 ) { con[2] = 1; con[3] = 0; }
+    else if ( checknumdif(Xf,-1,-1,0,1,word2,2)<=3 ) { con[2] = 0; con[3] = 1; }
+    else if ( checknumdif(Xf,-1,-1,1,1,word2,2)<=3 ) { con[2] = 1; con[3] = 1; }
     else    { printf("Incorrect condition on 2nd round\n"); exit(1);}
   } 
   return;
@@ -481,7 +486,7 @@ static float neutrality(int flg, int i, int j) {
   unsigned long int count;
   int absol = (flg==flgEf || flg==flgEg || flg==flgE);
   int con[4];
-  float bias[Nk];
+  double bias[Nk];
   denullify(Xf);
   if ( flg!=flgEg && flg!=flgE ) { nullify(Xg); }
   else { denullify(Xg); }
@@ -491,12 +496,12 @@ static float neutrality(int flg, int i, int j) {
     keysetup(old,Xg);
     fixBPNBs(0,Xg);
     count = 0;
-    //printf("key %d\n",key);
+    printf("key %d\n",key);
     for (unsigned long int ivs = 0; ivs < Niv; ++ivs) {
       ivsetup(new,Xf);
       ivsetup(old,Xg);
-      fixFPSBs(Xf,&aux,&fpsb,ivs);
-      fixFPSBs(Xg,&aux,&fpsb,ivs);
+      fixFPSBs(Xf,&aux,-1,&fpsb,ivs);
+      fixFPSBs(Xg,&aux,-1,&fpsb,ivs);
       fixCIV(Xf,&aux,ivs);
       fixCIV(Xg,&aux,ivs);
       setID(Xf);
@@ -513,7 +518,7 @@ static float neutrality(int flg, int i, int j) {
       count += measurement(flg,Xf,Xg,i,j);
     }
     bias[key] = biasformula(count,absol);
-    //printf("%u key with bias %f\n",key,bias[key]);
+    printf("%u key with bias %f\n",key,bias[key]);
   }
   printf("avg(bias)=%f\n",avg(bias));
   return median(bias,Nk);
@@ -539,15 +544,16 @@ void getPNBs(int flg, PNB *pnb) {
   for ( int i = 0 ; i < 16 ; ++i ) {
     if ( (iskey(i) && flg==flgB ) || ( isiv(i) && flg==flgF ) ) {
       for ( int j = 0 ; j < 32 ; ++j ) {
+        if ( i==14 && j==3){
         bias = neutrality(flg,i,j);
         printf("(%d,%d) bias %f\n",i,j,bias);
         updatePNB(flg,pnb,bias,i,j);
-      }
+      }}
     } 
   }
 }
 
 // Get bias Ef, Eg or E
-float getbias(int flg) {
+double getbias(int flg) {
   return neutrality(flg,-1,-1); 
 }

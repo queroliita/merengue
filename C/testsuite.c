@@ -36,9 +36,9 @@ static int same(char *str, char *txt){
 
 int main(int argc, char *argv[])
 { 
-  char stflg[8], stret[100], stciv[4], stfpnb[4];
+  char stflg[8], stret[100], stciv[4];
   PNB pnb = { 0, 0, {0}, {0}, {0.0}};
-  int eNk, eNiv, flg;
+  int eNk, eNiv, flg, nfpnb, nbpnb;
   float ret;
 
   bpnb = NULL; fpnb = NULL; civ = NULL; 
@@ -85,12 +85,12 @@ int main(int argc, char *argv[])
   else if ( !same(stciv,"n") ) { exit(1);}
 
   if (flg!=flgF) {
-    printf("FPNB = "); scanf("%s",stfpnb);
-    if (same(stfpnb,"y")){
-      if      ( civ == NULL ) { fpnb = &fpnb47; }
-      else if ( civ == &civx7 ) { fpnb = &fpnb52; }
-      else if ( civ == &civx7x6 ) { fpnb = &fpnb54; }
-    } else if ( !same(stfpnb,"n")) { exit(1); }
+    printf("FPNB = "); scanf("%d",&nfpnb);
+    if      ( nfpnb == 11 ) { fpnb = &fpnb11; }
+    else if ( civ == NULL && nfpnb == 47 ) { fpnb = &fpnb47; }
+    else if ( civ == &civx7 && nfpnb == 52 ) { fpnb = &fpnb52; }
+    else if ( civ == &civx7x6 && nfpnb == 54 ) { fpnb = &fpnb54; }
+    else { printf("11 | 47 | 52 | 54\n"); exit(1); }
   }
 
   if ( flg==flgF || flg==flgB ) {
@@ -98,14 +98,17 @@ int main(int argc, char *argv[])
   }
 
   if ( flg==flgEg || flg==flgE ) {
+    printf("BPNB = "); scanf("%d",&nbpnb);
     if ( R == 8 && r == 4 ) {
-      if      ( civ==NULL && OD[0][0]==1 && OD[0][1]==14 ) { bpnb = &bpnb36; }
-      else if ( civ==NULL && OD[0][0]==6 && OD[0][1]==14 ) { bpnb = &bpnb30; }
-      else if ( civ==&civx7 ) { bpnb = &bpnb33; }
-      else if ( civ==&civx8 ) { bpnb = &bpnb31; }
-      else if ( civ==&civx7x6 ) { bpnb = &bpnb38; }
-    } else if ( R==9 && r==5 && OD[0][0]==9 && OD[0][1]==21 ) { bpnb = &bpnb25;
-    } else if ( R==8 && r==5 && nODs==3 ) { bpnb = &bpnb_1_13; }
+      if      ( nbpnb == 48 ) { bpnb = &bpnb48; }
+      else if ( civ==NULL && OD[0][0]==1 && OD[0][1]==14 && nbpnb==36) { bpnb = &bpnb36; }
+      else if ( civ==NULL && OD[0][0]==6 && OD[0][1]==14 && nbpnb==30) { bpnb = &bpnb30; }
+      else if ( civ==&civx7 && nbpnb==37 ) { bpnb = &bpnb37; }
+      else if ( civ==&civx7 && nbpnb==33 ) { bpnb = &bpnb33; }
+      else if ( civ==&civx8 && nbpnb==31 ) { bpnb = &bpnb31; }
+      else if ( civ==&civx7x6 && nbpnb==38 ) { bpnb = &bpnb38; }
+    } else if ( R==9 && r==5 && OD[0][0]==9 && OD[0][1]==21 && nbpnb==25) { bpnb = &bpnb25;
+    } else if ( R==8 && r==5 && nODs==3 && nbpnb==36) { bpnb = &bpnb_1_13; }
   }
 
   clock_t t;
