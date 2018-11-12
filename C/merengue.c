@@ -544,11 +544,10 @@ void getPNBs(int flg, PNB *pnb) {
   for ( int i = 0 ; i < 16 ; ++i ) {
     if ( (iskey(i) && flg==flgB ) || ( isiv(i) && flg==flgF ) ) {
       for ( int j = 0 ; j < 32 ; ++j ) {
-        if ( i==14 && j==3){
         bias = neutrality(flg,i,j);
         printf("(%d,%d) bias %f\n",i,j,bias);
         updatePNB(flg,pnb,bias,i,j);
-      }}
+      }
     } 
   }
 }
